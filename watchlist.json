@@ -1,0 +1,47 @@
+[
+  {
+    "type": "email",
+    "value": "test@example.com",
+    "owner": "test"
+  },
+  {
+    "type": "phone",
+    "value": "01012345678",
+    "owner": "test"
+  },
+  {
+    "type": "username",
+    "value": "XSSF",
+    "owner": "test"
+  },
+  {
+    "type": "ipv4",
+    "value": "8.8.8.8",
+    "owner": "test"
+  },
+  {
+    "type": "url",
+    "value": "xssf",
+    "owner": "test"
+  },
+  {
+    "type": "api_key",
+    "value": "AKIAIOSFODNN7EXAMPLE",
+    "owner": "test"
+  },
+  {
+    "type": "onion",
+    "value": "xssfnet2env65wnrlixkn4io3gzuki7z7w767gdilk64iq6dg33jwsad.onion",
+    "owner": "test"
+  },
+  {
+    "type": "telegram",
+    "value": "t.me/xssf_forum",
+    "owner": "test"
+  },
+  {
+    "type": "btc_address",
+    "value": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080",
+    "owner": "test"
+  }
+]

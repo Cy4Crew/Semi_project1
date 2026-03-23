@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+from app.core.db import get_conn
+from app.repository import alerts as alerts_repo
+from app.repository import extracted_items as extracted_repo
+from app.repository import watchlist_hits as hits_repo
+
+router = APIRouter(tags=["results"])
+
+
+@router.get("/api/hits/recent")
+def recent_hits(limit: int = 100):
+    with get_conn() as conn:
+        data = hits_repo.list_recent_hits(conn, limit)
+        conn.commit()
+        return data
+
+
+@router.get("/api/extracted/recent")
+def recent_extracted(limit: int = 100):
+    with get_conn() as conn:
+        data = extracted_repo.list_recent_extracted_items(conn, limit)
+        conn.commit()
+        return data
+
+
+@router.get("/api/alerts/recent")
+def recent_alerts(limit: int = 100):
+    with get_conn() as conn:
+        data = alerts_repo.list_recent_alerts(conn, limit)
+        conn.commit()
+        return data

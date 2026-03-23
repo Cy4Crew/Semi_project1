@@ -1,0 +1,730 @@
+[
+  {
+    "seed_url": "https://0x00sec.org/",
+    "label": "target-001"
+  },
+  {
+    "seed_url": "https://4cheat.ru/",
+    "label": "target-002"
+  },
+  {
+    "seed_url": "https://589forum.org/",
+    "label": "target-003"
+  },
+  {
+    "seed_url": "https://alligator.cash/",
+    "label": "target-004"
+  },
+  {
+    "seed_url": "https://altenens.is",
+    "label": "target-005"
+  },
+  {
+    "seed_url": "https://alphv.pro",
+    "label": "target-006"
+  },
+  {
+    "seed_url": "https://forum.antichat.com",
+    "label": "target-007"
+  },
+  {
+    "seed_url": "https://antimigalki.space",
+    "label": "target-008"
+  },
+  {
+    "seed_url": "https://arbitraj-forum.ru",
+    "label": "target-009"
+  },
+  {
+    "seed_url": "https://ascarding.com",
+    "label": "target-010"
+  },
+  {
+    "seed_url": "https://astropid.net",
+    "label": "target-011"
+  },
+  {
+    "seed_url": "https://bdfclub.com",
+    "label": "target-012"
+  },
+  {
+    "seed_url": "https://bhcforums.cc",
+    "label": "target-013"
+  },
+  {
+    "seed_url": "https://bhf.ee",
+    "label": "target-014"
+  },
+  {
+    "seed_url": "https://bhf.im",
+    "label": "target-015"
+  },
+  {
+    "seed_url": "https://bhf.io",
+    "label": "target-016"
+  },
+  {
+    "seed_url": "https://bhf.pro",
+    "label": "target-017"
+  },
+  {
+    "seed_url": "https://bhf.gg",
+    "label": "target-018"
+  },
+  {
+    "seed_url": "http://bitcoinfor.ru",
+    "label": "target-019"
+  },
+  {
+    "seed_url": "https://forum.bits.media",
+    "label": "target-020"
+  },
+  {
+    "seed_url": "https://blackbiz.top",
+    "label": "target-021"
+  },
+  {
+    "seed_url": "https://blackbones.net",
+    "label": "target-022"
+  },
+  {
+    "seed_url": "https://blackforums.me",
+    "label": "target-023"
+  },
+  {
+    "seed_url": "https://blackforums.net",
+    "label": "target-024"
+  },
+  {
+    "seed_url": "https://blackforums.ru",
+    "label": "target-025"
+  },
+  {
+    "seed_url": "https://blackhacker.pw",
+    "label": "target-026"
+  },
+  {
+    "seed_url": "https://blackhatpakistan.net",
+    "label": "target-027"
+  },
+  {
+    "seed_url": "https://www.blackhatprotools.info/",
+    "label": "target-028"
+  },
+  {
+    "seed_url": "https://blackhatworld.com",
+    "label": "target-029"
+  },
+  {
+    "seed_url": "https://breached.co",
+    "label": "target-030"
+  },
+  {
+    "seed_url": "https://breached.to",
+    "label": "target-031"
+  },
+  {
+    "seed_url": "https://breached.vc",
+    "label": "target-032"
+  },
+  {
+    "seed_url": "https://breached.ws",
+    "label": "target-033"
+  },
+  {
+    "seed_url": "https://carders.biz",
+    "label": "target-034"
+  },
+  {
+    "seed_url": "https://center-club.io",
+    "label": "target-035"
+  },
+  {
+    "seed_url": "https://chitachok.ru",
+    "label": "target-036"
+  },
+  {
+    "seed_url": "https://comfybox.floofey.dog",
+    "label": "target-037"
+  },
+  {
+    "seed_url": "https://coockie.pro",
+    "label": "target-038"
+  },
+  {
+    "seed_url": "https://cracked.io",
+    "label": "target-039"
+  },
+  {
+    "seed_url": "https://cracked.sh",
+    "label": "target-040"
+  },
+  {
+    "seed_url": "https://cracking.org",
+    "label": "target-041"
+  },
+  {
+    "seed_url": "https://crackingking.com",
+    "label": "target-042"
+  },
+  {
+    "seed_url": "https://crackingmafia.is",
+    "label": "target-043"
+  },
+  {
+    "seed_url": "https://www.crackingpro.com",
+    "label": "target-044"
+  },
+  {
+    "seed_url": "https://crackingx.com",
+    "label": "target-045"
+  },
+  {
+    "seed_url": "https://crax.pro",
+    "label": "target-046"
+  },
+  {
+    "seed_url": "https://craxpro.io",
+    "label": "target-047"
+  },
+  {
+    "seed_url": "https://crdclub.su",
+    "label": "target-048"
+  },
+  {
+    "seed_url": "https://crdpro.cc",
+    "label": "target-049"
+  },
+  {
+    "seed_url": "http://crime.to",
+    "label": "target-050"
+  },
+  {
+    "seed_url": "http://crimenow.is",
+    "label": "target-051"
+  },
+  {
+    "seed_url": "https://crimestate.cc",
+    "label": "target-052"
+  },
+  {
+    "seed_url": "https://forum.cryptocurrency.tech",
+    "label": "target-053"
+  },
+  {
+    "seed_url": "https://forum.cryptoff.org",
+    "label": "target-054"
+  },
+  {
+    "seed_url": "http://cryptogid.org",
+    "label": "target-055"
+  },
+  {
+    "seed_url": "https://cvvbrd.info",
+    "label": "target-056"
+  },
+  {
+    "seed_url": "https://cybhack.net",
+    "label": "target-057"
+  },
+  {
+    "seed_url": "https://d4rkforums.net",
+    "label": "target-058"
+  },
+  {
+    "seed_url": "https://forum.dangerousthings.com",
+    "label": "target-059"
+  },
+  {
+    "seed_url": "https://dark2web.net",
+    "label": "target-060"
+  },
+  {
+    "seed_url": "https://darkclub.pw",
+    "label": "target-061"
+  },
+  {
+    "seed_url": "https://darkforum.in",
+    "label": "target-062"
+  },
+  {
+    "seed_url": "https://darkforum.net",
+    "label": "target-063"
+  },
+  {
+    "seed_url": "https://darkforums.me",
+    "label": "target-064"
+  },
+  {
+    "seed_url": "https://darkforums.io",
+    "label": "target-065"
+  },
+  {
+    "seed_url": "https://darkforums.su/",
+    "label": "target-066"
+  },
+  {
+    "seed_url": "https://darkmarket.at",
+    "label": "target-067"
+  },
+  {
+    "seed_url": "https://darkmarket.cx",
+    "label": "target-068"
+  },
+  {
+    "seed_url": "https://darkmoney.lc",
+    "label": "target-069"
+  },
+  {
+    "seed_url": "https://darknet.ug",
+    "label": "target-070"
+  },
+  {
+    "seed_url": "https://darknetworld.com",
+    "label": "target-071"
+  },
+  {
+    "seed_url": "https://darkpid.com",
+    "label": "target-072"
+  },
+  {
+    "seed_url": "https://darkpro.net/",
+    "label": "target-073"
+  },
+  {
+    "seed_url": "https://darkzone.uk",
+    "label": "target-074"
+  },
+  {
+    "seed_url": "https://datacloud.space",
+    "label": "target-075"
+  },
+  {
+    "seed_url": "https://dataforums.co",
+    "label": "target-076"
+  },
+  {
+    "seed_url": "https://dedicatet.com",
+    "label": "target-077"
+  },
+  {
+    "seed_url": "https://demonforums.net",
+    "label": "target-078"
+  },
+  {
+    "seed_url": "https://drdark.ru",
+    "label": "target-079"
+  },
+  {
+    "seed_url": "https://dumped.to",
+    "label": "target-080"
+  },
+  {
+    "seed_url": "https://dumpforums.to/",
+    "label": "target-081"
+  },
+  {
+    "seed_url": "https://forum.duty-free.cc/",
+    "label": "target-082"
+  },
+  {
+    "seed_url": "https://eleaks.to",
+    "label": "target-083"
+  },
+  {
+    "seed_url": "https://www.enclave.cc",
+    "label": "target-084"
+  },
+  {
+    "seed_url": "https://endway.su",
+    "label": "target-085"
+  },
+  {
+    "seed_url": "https://eternia.to",
+    "label": "target-086"
+  },
+  {
+    "seed_url": "https://evilarmy.in",
+    "label": "target-087"
+  },
+  {
+    "seed_url": "https://evil-zone.org",
+    "label": "target-088"
+  },
+  {
+    "seed_url": "https://evilx.su/forum/",
+    "label": "target-089"
+  },
+  {
+    "seed_url": "https://forum.exodusmarket.io",
+    "label": "target-090"
+  },
+  {
+    "seed_url": "https://exploit.in",
+    "label": "target-091"
+  },
+  {
+    "seed_url": "https://exploit.biz",
+    "label": "target-092"
+  },
+  {
+    "seed_url": "https://exploitforums.net",
+    "label": "target-093"
+  },
+  {
+    "seed_url": "https://exploits.ws",
+    "label": "target-094"
+  },
+  {
+    "seed_url": "https://ezcarder.is/",
+    "label": "target-095"
+  },
+  {
+    "seed_url": "https://forumteam.online",
+    "label": "target-096"
+  },
+  {
+    "seed_url": "https://forumteam.top",
+    "label": "target-097"
+  },
+  {
+    "seed_url": "https://fssquad.com",
+    "label": "target-098"
+  },
+  {
+    "seed_url": "https://getrekt.io",
+    "label": "target-099"
+  },
+  {
+    "seed_url": "https://hackforums.net/index.php",
+    "label": "target-100"
+  },
+  {
+    "seed_url": "https://hackingfather.com/",
+    "label": "target-101"
+  },
+  {
+    "seed_url": "https://hackonology.com/forum/",
+    "label": "target-102"
+  },
+  {
+    "seed_url": "https://hacksnation.com/",
+    "label": "target-103"
+  },
+  {
+    "seed_url": "https://hard-tm.su",
+    "label": "target-104"
+  },
+  {
+    "seed_url": "https://hydraforums.io",
+    "label": "target-105"
+  },
+  {
+    "seed_url": "https://in4.bz",
+    "label": "target-106"
+  },
+  {
+    "seed_url": "https://incidious.se",
+    "label": "target-107"
+  },
+  {
+    "seed_url": "https://infected-zone.com",
+    "label": "target-108"
+  },
+  {
+    "seed_url": "https://infinity.ink",
+    "label": "target-109"
+  },
+  {
+    "seed_url": "https://korovka.cc",
+    "label": "target-110"
+  },
+  {
+    "seed_url": "https://lampeduza.la",
+    "label": "target-111"
+  },
+  {
+    "seed_url": "https://leadlab.top",
+    "label": "target-112"
+  },
+  {
+    "seed_url": "https://leakbase.la",
+    "label": "target-113"
+  },
+  {
+    "seed_url": "https://leakbase.bz",
+    "label": "target-114"
+  },
+  {
+    "seed_url": "https://leakforums.su",
+    "label": "target-115"
+  },
+  {
+    "seed_url": "https://leaks.so",
+    "label": "target-116"
+  },
+  {
+    "seed_url": "https://leak.sx",
+    "label": "target-117"
+  },
+  {
+    "seed_url": "https://leaky.pro/",
+    "label": "target-118"
+  },
+  {
+    "seed_url": "https://leech.is",
+    "label": "target-119"
+  },
+  {
+    "seed_url": "https://leetforums.cc",
+    "label": "target-120"
+  },
+  {
+    "seed_url": "https://level23hacktools.com/hackers",
+    "label": "target-121"
+  },
+  {
+    "seed_url": "https://linkpass.info",
+    "label": "target-122"
+  },
+  {
+    "seed_url": "https://lolz.guru",
+    "label": "target-123"
+  },
+  {
+    "seed_url": "http://lowendtalk.com",
+    "label": "target-124"
+  },
+  {
+    "seed_url": "https://masthead.social/auth/sign_in",
+    "label": "target-125"
+  },
+  {
+    "seed_url": "https://megatop.biz",
+    "label": "target-126"
+  },
+  {
+    "seed_url": "https://mipped.com",
+    "label": "target-127"
+  },
+  {
+    "seed_url": "https://mmgp.com",
+    "label": "target-128"
+  },
+  {
+    "seed_url": "https://niflheim.world",
+    "label": "target-129"
+  },
+  {
+    "seed_url": "https://nodo313.net",
+    "label": "target-130"
+  },
+  {
+    "seed_url": "https://nohide.space",
+    "label": "target-131"
+  },
+  {
+    "seed_url": "https://nulledbb.com",
+    "label": "target-132"
+  },
+  {
+    "seed_url": "https://nulledx.to",
+    "label": "target-133"
+  },
+  {
+    "seed_url": "https://www.oguser.com",
+    "label": "target-134"
+  },
+  {
+    "seed_url": "https://olvx.cc",
+    "label": "target-135"
+  },
+  {
+    "seed_url": "https://omerta.cc",
+    "label": "target-136"
+  },
+  {
+    "seed_url": "https://onniforums.com",
+    "label": "target-137"
+  },
+  {
+    "seed_url": "https://patched.to",
+    "label": "target-138"
+  },
+  {
+    "seed_url": "https://payload.sh",
+    "label": "target-139"
+  },
+  {
+    "seed_url": "https://phish.pw",
+    "label": "target-140"
+  },
+  {
+    "seed_url": "https://phreaker.info",
+    "label": "target-141"
+  },
+  {
+    "seed_url": "https://probiv.one",
+    "label": "target-142"
+  },
+  {
+    "seed_url": "https://prologic.su",
+    "label": "target-143"
+  },
+  {
+    "seed_url": "https://proton.sc",
+    "label": "target-144"
+  },
+  {
+    "seed_url": "https://pshack.org",
+    "label": "target-145"
+  },
+  {
+    "seed_url": "https://rebreached.vc",
+    "label": "target-146"
+  },
+  {
+    "seed_url": "https://reversing.center",
+    "label": "target-147"
+  },
+  {
+    "seed_url": "https://rootsploit.org",
+    "label": "target-148"
+  },
+  {
+    "seed_url": "https://seopirat.club",
+    "label": "target-149"
+  },
+  {
+    "seed_url": "https://sinfulsite.com",
+    "label": "target-150"
+  },
+  {
+    "seed_url": "https://sinister.ly",
+    "label": "target-151"
+  },
+  {
+    "seed_url": "https://skynetzone.biz",
+    "label": "target-152"
+  },
+  {
+    "seed_url": "https://skynetzone.pw",
+    "label": "target-153"
+  },
+  {
+    "seed_url": "https://forum.softxaker.ru",
+    "label": "target-154"
+  },
+  {
+    "seed_url": "https://spear.cx",
+    "label": "target-155"
+  },
+  {
+    "seed_url": "https://spyhackerz.org",
+    "label": "target-156"
+  },
+  {
+    "seed_url": "https://sqli.cloud",
+    "label": "target-157"
+  },
+  {
+    "seed_url": "https://stressedforums.pw",
+    "label": "target-158"
+  },
+  {
+    "seed_url": "https://thegoodlife.to",
+    "label": "target-159"
+  },
+  {
+    "seed_url": "https://thejavasea.com",
+    "label": "target-160"
+  },
+  {
+    "seed_url": "https://toolba.se",
+    "label": "target-161"
+  },
+  {
+    "seed_url": "https://trafa.net",
+    "label": "target-162"
+  },
+  {
+    "seed_url": "https://www.turkhackteam.org",
+    "label": "target-163"
+  },
+  {
+    "seed_url": "https://umbra.by",
+    "label": "target-164"
+  },
+  {
+    "seed_url": "https://vavilon.cc",
+    "label": "target-165"
+  },
+  {
+    "seed_url": "https://vedenet.online",
+    "label": "target-166"
+  },
+  {
+    "seed_url": "https://veryleaks.cz",
+    "label": "target-167"
+  },
+  {
+    "seed_url": "https://v-h.guru",
+    "label": "target-168"
+  },
+  {
+    "seed_url": "https://vlmi.ws",
+    "label": "target-169"
+  },
+  {
+    "seed_url": "https://vsemmoney.com",
+    "label": "target-170"
+  },
+  {
+    "seed_url": "https://wwh-club.io",
+    "label": "target-171"
+  },
+  {
+    "seed_url": "https://xforums.st",
+    "label": "target-172"
+  },
+  {
+    "seed_url": "https://xreactor.org",
+    "label": "target-173"
+  },
+  {
+    "seed_url": "https://xss.pro",
+    "label": "target-174"
+  },
+  {
+    "seed_url": "https://youhack.xyz",
+    "label": "target-175"
+  },
+  {
+    "seed_url": "https://zdl.pw",
+    "label": "target-176"
+  },
+  {
+    "seed_url": "https://kittyforums.st/",
+    "label": "target-177"
+  },
+  {
+    "seed_url": "https://rehubcom.pro",
+    "label": "target-178"
+  },
+  {
+    "seed_url": "https://xssf.net/",
+    "label": "target-179"
+  },
+  {
+    "seed_url": "https://leakforum.io",
+    "label": "target-180"
+  },
+  {
+    "seed_url": "https://leakforums.cc",
+    "label": "target-181"
+  },
+  {
+    "seed_url": "https://breachstars.io/",
+    "label": "target-182"
+  }
+]
