@@ -8,11 +8,12 @@ import uvicorn
 
 from app.api.main import app
 from app.core.config import settings
-from app.core.db import close_pool, open_pool
+from app.core.db import close_pool, open_pool, get_conn
 from app.core.logging import setup_logging
 from app.crawler.scheduler import scheduler
 from app.init_db import init_db
 from app.notifier.worker import alert_worker
+from app.repository.targets import reset_queued_targets
 
 
 def run_api() -> None:
@@ -49,13 +50,18 @@ def main() -> None:
     args = parser.parse_args()
 
     open_pool()
+
     if args.mode == "init_db":
         init_db(load_seed_data=True)
         close_pool()
         return
 
-    if args.mode in {"all", "api"}:
+    if args.mode in {"all", "api", "crawler", "alert_worker"}:
         init_db(load_seed_data=True)
+
+    with get_conn() as conn:
+        reset_queued_targets(conn)
+        conn.commit()
 
     try:
         if args.mode == "api":
