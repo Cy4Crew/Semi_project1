@@ -77,8 +77,8 @@ def get_due_targets(conn, revisit_after_seconds: int) -> list[dict[str, Any]]:
             WHERE enabled = TRUE
               AND is_queued = FALSE
               AND (
-                    last_queued_at IS NULL
-                    OR last_queued_at <= NOW() - (%s * INTERVAL '1 second')
+                    last_fetched_at IS NULL
+                    OR last_fetched_at <= NOW() - (%s * INTERVAL '1 second')
                   )
             ORDER BY id ASC
             """,
@@ -86,6 +86,17 @@ def get_due_targets(conn, revisit_after_seconds: int) -> list[dict[str, Any]]:
         )
         rows = cur.fetchall()
         return _rows_to_dicts(cur, rows)
+    
+
+def reset_queued_targets(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE targets
+            SET is_queued = FALSE
+            WHERE is_queued = TRUE
+            """
+        )
 
 
 def mark_target_queued(conn, target_id: int) -> None:
