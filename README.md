@@ -75,6 +75,37 @@ TOR_PROXY_URL=socks5h://tor:9050
 
 ---
 
+## Verify It Works
+
+```text
+[PRODUCER] due_targets=...
+[WORKER] picked depth=0 ...
+[MATCH] ...
+[ALERT] sent
+```
+
+If you see MATCH and ALERT logs, the system is working correctly.
+
+---
+
+## Common Issues
+
+```text
+no crawl  → check DB / targets
+no match  → check watchlist / extractor
+no alert  → check webhook / cooldown
+```
+
+---
+
+## Watchlist Note
+
+```text
+pattern too broad → false positives 발생
+```
+
+---
+
 ## More Details
 
 See `README_OPERATIONS_FULL.md` for full documentation.
