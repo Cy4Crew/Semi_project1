@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Darkweb Monitor</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; background: #111827; color: #e5e7eb; }
+    h1, h2 { margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+    .card { background: #1f2937; border-radius: 12px; padding: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #374151; vertical-align: top; }
+    code { color: #93c5fd; }
+    a { color: #93c5fd; }
+    .section { margin-bottom: 32px; }
+  </style>
+</head>
+<body>
+  <h1>Darkweb Monitor Dashboard</h1>
+  <p><a href="/docs">Open API docs</a></p>
+
+  <div class="grid" id="summary"></div>
+
+  <div class="section">
+    <h2>Recent Hits</h2>
+    <table id="hits"><thead><tr><th>ID</th><th>Type</th><th>Value</th><th>URL</th><th>Screenshot</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section">
+    <h2>Recent Alerts</h2>
+    <table id="alerts"><thead><tr><th>ID</th><th>Channel</th><th>Status</th><th>Value</th><th>URL</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <script>
+    async function loadJson(url) {
+      const res = await fetch(url);
+      return await res.json();
+    }
+
+    function renderSummary(data) {
+      const target = document.getElementById('summary');
+      target.innerHTML = '';
+      for (const [key, value] of Object.entries(data)) {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `<strong>${key}</strong><div style="font-size:28px;margin-top:8px;">${value}</div>`;
+        target.appendChild(div);
+      }
+    }
+
+    function renderTable(id, rows, columns) {
+      const tbody = document.querySelector(`#${id} tbody`);
+      tbody.innerHTML = '';
+      for (const row of rows) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = columns.map(fn => `<td>${fn(row)}</td>`).join('');
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function refresh() {
+      const summary = await loadJson('/api/summary');
+      const hits = await loadJson('/api/hits/recent?limit=20');
+      const alerts = await loadJson('/api/alerts/recent?limit=20');
+      renderSummary(summary);
+      renderTable('hits', hits, [
+        row => row.id,
+        row => row.watch_type,
+        row => row.matched_value,
+        row => `<a href="${row.url}" target="_blank">${row.url}</a>`,
+        row => row.screenshot_path ? `<a href="/${row.screenshot_path.replace(/^\/+/, '')}" target="_blank">open</a>` : ''
+      ]);
+      renderTable('alerts', alerts, [
+        row => row.id,
+        row => row.channel,
+        row => row.status,
+        row => row.matched_value,
+        row => `<a href="${row.url}" target="_blank">${row.url}</a>`
+      ]);
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>

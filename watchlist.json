@@ -1,0 +1,23 @@
+[
+  { "type": "email", "pattern": "test@example.com", "label": "test" },
+
+  { "type": "domain", "pattern": "mail.ru", "label": "test" },
+
+  { "type": "phone", "pattern": "01012345678", "label": "test" },
+
+  { "type": "username", "pattern": "xssf", "label": "test" },
+
+  { "type": "ipv4", "pattern": "8.8.8.8", "label": "test" },
+
+  { "type": "url", "pattern": "https://xssf.net", "label": "test" },
+
+  { "type": "api_key", "pattern": "akiaiosfodnn7example", "label": "test" },
+
+  { "type": "onion", "pattern": "suprbaydvdcaynfo4dgdzgxb4zuso7rftlil5yg5kqjefnw4wq4ulcad.onion", "label": "test" },
+
+  { "type": "telegram", "pattern": "t.me/tron993", "label": "test" },
+
+  { "type": "btc", "pattern": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080", "label": "test" },
+
+  { "type": "hash", "pattern": "5d41402abc4b2a76b9719d911017c592", "label": "test" }
+]
