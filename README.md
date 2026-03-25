@@ -1,33 +1,32 @@
-# Darkweb Monitor
+# Darkweb Monitor (Operational Guide)
 
-A real-time monitoring system for crawling surface web and darkweb sources, extracting indicators, storing evidence, and sending alerts when watchlist matches are detected.
+A real-time monitoring system that crawls surface web and darkweb sources, extracts indicators, stores evidence, and triggers alerts.
 
 ---
 
 ## Overview
 
-This project is designed to monitor target sites continuously, collect page content, extract useful artifacts, compare them against a watchlist, and notify operators through external alert channels.
-
-It supports both standard web targets and `.onion` services through Tor.
+This system continuously monitors targets, extracts artifacts, compares them against a watchlist, and sends alerts when matches are detected.
 
 ---
 
-## Key Features
+## Data Flow (Critical)
 
-- Asynchronous multi-worker crawling
-- Depth-based URL expansion
-- Surface web and Tor-based `.onion` crawling
-- Indicator extraction and normalization
-- Watchlist-based matching
-- Alert deduplication with cooldown control
-- Evidence storage for raw HTML, text dumps, and screenshots
-- Discord and Telegram alert delivery
+1. Load targets (`targets.json`)
+2. Scheduler enqueues jobs
+3. Fetch page (HTTP / Tor)
+4. Extract indicators
+5. Normalize values
+6. Match against watchlist
+7. Save to DB (`pages`, `findings`)
+8. Deduplicate
+9. Trigger alert
 
 ---
 
 ## Project Structure
 
-```plaintext
+```
 app/
 ├── api/
 ├── core/
@@ -47,81 +46,75 @@ watchlist.json
 requirements.txt
 ```
 
-### Directory Notes
-
-- `app/api/`  
-  API-related logic and endpoints.
-
-- `app/core/`  
-  Core configuration, database connection, and shared utilities.
-
-- `app/crawler/`  
-  Main crawling pipeline including scheduling, fetching, extraction, matching, and screenshot capture.
-
-- `app/repository/`  
-  Database access layer for saving pages, findings, alerts, and target state.
-
-- `app/init_db.py`  
-  Database schema initialization.
-
-- `run.py`  
-  Main entry point for starting the service.
-
-- `targets.json`  
-  Seed targets to monitor.
-
-- `watchlist.json`  
-  Patterns used for detection and alerting.
-
-- `.env`  
-  Runtime configuration values.
-
-- `requirements.txt`  
-  Python dependency list.
-
 ---
 
-## How It Works
+## Database Structure (Essential)
 
-The system processes data in the following order:
+- `targets` → seed URLs
+- `pages` → crawled pages
+- `findings` → extracted indicators
+- `alerts` → triggered alerts
 
-1. Load monitoring targets from `targets.json`
-2. Enqueue crawl jobs through the scheduler
-3. Fetch target pages over HTTP or Tor
-4. Extract indicators and content from fetched pages
-5. Compare extracted values against `watchlist.json`
-6. Save results and evidence to storage/database
-7. Trigger alerts if a new valid match is found
+Relation:
 
----
-
-## Requirements
-
-Install the following before running the project:
-
-- Python 3.10 or later
-- PostgreSQL
-- Playwright
-- Tor, if `.onion` crawling is required
-
----
-
-## Installation
-
-```bash
-pip install -r requirements.txt
-playwright install
+```
+targets → pages → findings → alerts
 ```
 
 ---
 
-## Configuration
+## Alert Logic (Exact)
 
-Create a `.env` file in the project root.
+Alert triggers only when:
 
-### Example
+1. `normalized` value matches watchlist pattern
+2. `(type + normalized)` not seen within cooldown
 
-```env
+Deduplication key:
+
+```
+group_key = type + normalized
+```
+
+---
+
+## Watchlist Rules
+
+- `pattern` is exact match or regex (depending on matcher implementation)
+- Avoid overly short patterns (causes false positives)
+- Recommended:
+  - phone: strict format
+  - username: min length ≥ 4
+  - domain: full domain, not partial
+
+---
+
+## Required Setup
+
+### Install
+
+```
+pip install -r requirements.txt
+playwright install
+```
+
+### PostgreSQL
+
+Local:
+```
+postgresql://user:password@127.0.0.1:5432/intel
+```
+
+Docker:
+```
+postgresql://user:password@db:5432/intel
+```
+
+---
+
+## .env Example
+
+```
 API_HOST=0.0.0.0
 API_PORT=8000
 API_KEY=changeme
@@ -148,199 +141,90 @@ TOR_SOCKS_PORT=9050
 TOR_PROXY_URL=socks5h://tor:9050
 
 REQUEST_TIMEOUT_SECONDS=60
-```
 
-### Important Notes
-
-- Use `127.0.0.1` or `localhost` for local PostgreSQL.
-- Use `db` only when PostgreSQL runs as a Docker service.
-- Leave Discord and Telegram fields empty if alerts are not needed.
-- Tor proxy must be reachable for `.onion` crawling.
-
----
-
-## Database Setup
-
-Initialize the database schema before the first run:
-
-```bash
-python -m app.init_db
 ```
 
 ---
 
-## Running the Project
+## Tor (.onion)
 
-```bash
-python run.py
+Local:
 ```
-
----
-
-## Docker Notes
-
-When running inside Docker, the database host usually changes from `127.0.0.1` to the service name.
-
-Example:
-
-```env
-DATABASE_URL=postgresql://user:password@db:5432/intel
-```
-
-If Tor is also containerized:
-
-```env
-TOR_PROXY_URL=socks5h://tor:9050
-```
-
----
-
-## Tor Support
-
-This project can crawl `.onion` sites through a SOCKS proxy.
-
-### Local Tor
-
-Run Tor locally:
-
-```bash
 tor
-```
-
-Then use:
-
-```env
 TOR_PROXY_URL=socks5h://127.0.0.1:9050
 ```
 
-### Docker Tor
-
-If Tor runs as a separate Docker service:
-
-```env
+Docker:
+```
 TOR_PROXY_URL=socks5h://tor:9050
 ```
 
 ---
 
-## Target File Format
+## Crawling Behavior (Important)
 
-### `targets.json`
+- `MAX_DEPTH` controls link expansion
+- Depth increases only when:
+  - link is discovered
+  - enqueue condition passes
 
-```json
-[
-  {
-    "label": "forum",
-    "url": "https://example.com"
-  }
-]
-```
-
-This file defines the initial URLs or seed targets the crawler will monitor.
+Common issue:
+→ depth stuck at 0 = filtering or condition problem
 
 ---
 
-## Watchlist Format
+## Logs (Normal Operation)
 
-### `watchlist.json`
-
-```json
-[
-  { "type": "email", "pattern": "test@example.com", "label": "test" },
-  { "type": "domain", "pattern": "mail.ru", "label": "test" },
-  { "type": "phone", "pattern": "01012345678", "label": "test" }
-]
+```
+[PRODUCER] due_targets=10
+[QUEUE] target_id=1 url=...
+[WORKER] picked depth=0 ...
+[MATCH] email=test@example.com
+[ALERT] sent
 ```
 
-This file defines the indicators that should trigger a detection.
-
----
-
-## Alert Behavior
-
-Alerts are generated only when:
-
-- an extracted value matches a watchlist pattern, and
-- the same match is not suppressed by the configured cooldown period
-
-Supported alert channels:
-
-- Discord Webhook
-- Telegram Bot
-
----
-
-## Screenshot Evidence
-
-When screenshot capture is enabled:
-
-```env
-SCREENSHOT_ENABLED=true
-```
-
-the crawler can save visual evidence of matched pages using Playwright.
-
-This is useful for investigation, reporting, and audit trails.
+If missing:
+- no MATCH → extraction issue
+- no ALERT → cooldown or webhook issue
 
 ---
 
 ## Troubleshooting
 
-### No crawling activity
+### No crawling
+- DB not initialized
+- targets table empty
 
-Check the following:
+### No match
+- watchlist too strict
+- extractor not working
 
-- PostgreSQL is running
-- `DATABASE_URL` is correct
-- the `targets` table is populated
-- the scheduler is running normally
+### No alert
+- cooldown blocking
+- webhook not set
 
-### No alerts are sent
-
-Check the following:
-
-- `watchlist.json` contains valid patterns
-- alert webhook or bot settings are correct
-- cooldown is not suppressing repeated alerts
-- extraction is actually producing matches
-
-### `.onion` pages do not load
-
-Check the following:
-
-- Tor is running
-- `TOR_PROXY_URL` is correct
-- the crawler is configured to use the proxy
-
-### Playwright screenshot errors
-
-Run:
-
-```bash
-playwright install
-```
-
-and ensure the browser dependencies are installed correctly.
+### Depth not increasing
+- link filter too strict
+- `changed` condition blocking
 
 ---
 
-## Operational Notes
+## Operational Recommendations
 
-- Very low `MAX_DEPTH` reduces coverage.
-- Very strict patterns reduce match rates.
-- Very high cooldown values reduce repeated alerts.
-- Large target sets may require more workers and stronger deduplication control.
-
----
-
-## Recommended Setup
-
-For stable operation:
-
-1. Use PostgreSQL instead of temporary local storage.
-2. Keep `MAX_DEPTH` low at first.
-3. Start with a small watchlist and expand gradually.
-4. Verify matching and alert flow before scaling target volume.
-5. Separate local and Docker configuration clearly.
+- Start with `MAX_DEPTH=1`
+- Use broad patterns initially
+- Verify logs before scaling
+- Monitor DB (`findings` table)
 
 ---
+
+## Summary
+
+This system depends on:
+
+- correct DB state
+- proper extraction
+- accurate watchlist
+- valid alert configuration
+
+Failure in any step breaks the pipeline.
