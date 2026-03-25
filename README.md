@@ -1,113 +1,73 @@
-# Darkweb OSINT Monitoring System
+# Darkweb Monitor
 
-## Overview
+A real-time monitoring system that crawls web/darkweb sources, extracts sensitive indicators, and triggers alerts.
 
-This system is a real-time threat intelligence platform that collects, analyzes, and monitors data leaks from both surface web and dark web sources.
-
-It provides an end-to-end pipeline including crawling, extraction, pattern matching, storage, and evidence collection.
-
-Key additional features:
-- Discord alert notifications
-- Tor-based crawling for `.onion` dark web targets
+Supports:
+- Surface web + `.onion` (Tor)
+- Pattern-based detection (email, domain, IP, etc.)
+- Real-time alerting (Discord / Telegram)
+- Screenshot evidence capture
 
 ---
 
-## Key Features
+## Features
 
-### Asynchronous Web Crawling
-- Multi-worker queue-based architecture
+- Multi-worker async crawler
 - Depth-based link expansion
-- Target scheduling system
-
-### Data Extraction
-- Regex-based extraction (email, domain, phone, etc.)
-- HTML parsing using BeautifulSoup
-
-### Threat Detection (Matcher)
-- Watchlist-based detection
-- Deduplicated matching logic
-
-### Storage
-- PostgreSQL-based persistence
-- Structured schema (targets, pages, findings)
-
-### Evidence Collection
-- Raw HTML storage
-- Text dump generation
+- Pattern extraction & normalization
+- Alert deduplication (cooldown-based)
 - Screenshot capture (Playwright)
-
-### API Layer
-- FastAPI-based REST API
-- Access to targets, pages, and findings
-
-### Discord Alert System
-- Sends real-time alerts via Discord Webhook when sensitive data is detected
-
-### Tor (.onion) Support
-- Crawls `.onion` domains using Tor proxy
-- Enables dark web OSINT collection
-
----
-
-## Tech Stack
-
-- Python (Asyncio)
-- FastAPI
-- PostgreSQL
-- Playwright
-- BeautifulSoup / lxml
-- httpx (async HTTP client)
-- Tor (SOCKS5 proxy)
+- Tor support for `.onion` domains
 
 ---
 
 ## Project Structure
 
-```
 app/
-├── api/
-├── core/
-├── crawler/
-│   ├── scheduler.py
-│   ├── fetcher.py
-│   ├── extractor.py
-│   ├── matcher.py
-│   └── screenshot.py
-├── repository/
-
+ ├── api/
+ ├── core/
+ ├── crawler/
+ │   ├── scheduler.py
+ │   ├── fetcher.py
+ │   ├── extractor.py
+ │   ├── matcher.py
+ │   └── screenshot.py
+ ├── repository/
+ ├── init_db.py
 run.py
 targets.json
 watchlist.json
-```
+.env
+requirements.txt
 
 ---
 
-## Setup
+## Quick Start (Local)
 
-### Install
+### 1. Install dependencies
 
 pip install -r requirements.txt
+playwright install
 
 ---
 
-### Initialize Database
+### 2. Run PostgreSQL
 
-python -m app.init_db
-
----
-
-## Configuration (.env)
-
-Create a `.env` file in the project root directory.
+Make sure PostgreSQL is running locally.
 
 Example:
 
-```
+postgresql://user:password@127.0.0.1:5432/intel
+
+---
+
+### 3. Configure `.env`
+
 API_HOST=0.0.0.0
 API_PORT=8000
-API_KEY=your_api_key
+API_KEY=changeme
 
-DATABASE_URL=postgresql://your_user:your_password@db:5432/intel
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/intel
 
 POLL_INTERVAL_SECONDS=5
 WORKER_COUNT=4
@@ -123,74 +83,137 @@ TELEGRAM_CHAT_ID=
 SCREENSHOT_ENABLED=true
 PLAYWRIGHT_TIMEOUT_MS=30000
 
-TOR_ENABLED=true
-TOR_FOR_ALL_REQUESTS=false
-TOR_SOCKS_HOST=tor
-TOR_SOCKS_PORT=9050
-TOR_PROXY_URL=socks5h://tor:9050
-
-REQUEST_TIMEOUT_SECONDS=60
-```
-
-Notes:
-- The `.env` file must be placed in the project root
-- Do not commit `.env` to GitHub (contains sensitive data)
-- Use `.env.example` for sharing configuration structure
+TOR_PROXY_URL=socks5h://127.0.0.1:9050
 
 ---
 
-### Run
+### 4. Initialize database
+
+python -m app.init_db
+
+---
+
+### 5. Run
 
 python run.py
 
-or (Windows):
+---
 
-run.bat
+## Docker (Optional)
+
+If using Docker, `DATABASE_URL` must use service name:
+
+postgresql://user:password@db:5432/intel
 
 ---
 
-## Discord Alerts
+## Tor (.onion support)
 
-- Automatically triggered on detection
-- Requires webhook URL configuration
+### Option 1 (Local Tor)
 
-Alert includes:
-- URL
-- Matched value
-- Type (email, domain, etc.)
-
----
-
-## Tor (.onion) Crawling
-
-### Requirements
-
-Tor must be running (default port: 9050)
-
-```
 tor
-```
 
-or run Tor Browser
+TOR_PROXY_URL=socks5h://127.0.0.1:9050
+
+### Option 2 (Docker Tor)
+
+TOR_PROXY_URL=socks5h://tor:9050
 
 ---
 
-### Configuration
+## Data Flow
 
-Use SOCKS5 proxy:
+1. Load targets from `targets.json`
+2. Scheduler enqueues URLs
+3. Fetch page (HTTP / Tor)
+4. Extract content
+5. Match against `watchlist.json`
+6. Save findings
+7. Trigger alert (if matched)
 
-```
-socks5://127.0.0.1:9050
-```
+---
 
-This enables:
-- Crawling `.onion` domains
-- Hybrid surface + dark web monitoring
+## targets.json
+
+Example:
+
+[
+  {
+    "label": "forum",
+    "url": "https://example.com"
+  }
+]
+
+---
+
+## watchlist.json
+
+Example:
+
+[
+  { "type": "email", "pattern": "test@example.com", "label": "test" },
+  { "type": "domain", "pattern": "mail.ru", "label": "test" },
+  { "type": "phone", "pattern": "01012345678", "label": "test" }
+]
+
+---
+
+## Alerts
+
+Alerts trigger when:
+- Extracted value matches watchlist pattern
+- Not duplicated within cooldown period
+
+Supported:
+- Discord Webhook
+- Telegram Bot
+
+---
+
+## Screenshot
+
+If enabled:
+
+SCREENSHOT_ENABLED=true
+
+Each matched page is saved as an image using Playwright.
+
+---
+
+## Troubleshooting
+
+### No crawling happens
+
+- Check DB connection
+- Check `targets` table is populated
+
+### No alerts
+
+- Ensure `watchlist.json` has valid patterns
+- Check cooldown settings
+- Verify webhook/token
+
+### `.onion` not working
+
+- Ensure Tor is running
+- Check proxy URL
+
+### Playwright errors
+
+playwright install
 
 ---
 
 ## Notes
 
-- Depth and worker settings are configurable
-- Proper transaction and concurrency handling is required
-- Deduplication in matcher is critical for performance
+- Depth too low → no expansion
+- Strict patterns → no matches
+- High cooldown → fewer alerts
+
+---
+
+## Recommended
+
+- Use Docker for stability
+- Start with small `MAX_DEPTH`
+- Gradually expand watchlist patterns
