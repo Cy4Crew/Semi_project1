@@ -63,20 +63,22 @@ Key additional features:
 
 ## Project Structure
 
+```
 app/
- ├── api/
- ├── core/
- ├── crawler/
- │    ├── scheduler.py
- │    ├── fetcher.py
- │    ├── extractor.py
- │    ├── matcher.py
- │    └── screenshot.py
- ├── repository/
+├── api/
+├── core/
+├── crawler/
+│   ├── scheduler.py
+│   ├── fetcher.py
+│   ├── extractor.py
+│   ├── matcher.py
+│   └── screenshot.py
+├── repository/
 
 run.py
 targets.json
 watchlist.json
+```
 
 ---
 
