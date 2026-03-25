@@ -1,0 +1,39 @@
+# 환경변수 (API 키, DB 비밀번호 등 절대 올리면 안됨)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 가상환경
+venv/
+.venv/
+env/
+
+# 크롤링 수집 데이터 (용량 크고 민감한 정보 포함)
+evidence/
+
+# DB 관련
+*.sql
+*.dump
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+logs/
