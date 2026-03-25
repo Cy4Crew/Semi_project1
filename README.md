@@ -108,4 +108,4 @@ pattern too broad → false positives 발생
 
 ## More Details
 
-See `README_OPERATIONS_FULL.md` for full documentation.
+See [`README_OPERATIONS.md`](https://github.com/Cy4Crew/Semi_project1/blob/23056a3b67a70db2946945f0a3b31df8da20f3d1/README_OPERATIONS.md) for full documentation.
