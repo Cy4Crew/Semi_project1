@@ -1,6 +1,3 @@
-# 환경변수 (API 키, DB 비밀번호 등 절대 올리면 안됨)
-.env
-
 # Python
 __pycache__/
 *.pyc
