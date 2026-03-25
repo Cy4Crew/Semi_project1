@@ -43,5 +43,25 @@
     "type": "btc",
     "value": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080",
     "owner": "test"
+  },
+  {
+    "type": "pattern",
+    "value": "(?i)\\b(credential|password|passwd|secret)s?\\b",
+    "label": "자격증명 키워드 탐지",
+    "owner": "test",
+    "target_types": ["url", "domain", "email"]
+  },
+  {
+    "type": "pattern",
+    "value": "01[016789][0-9]{7,8}",
+    "label": "한국 휴대폰 번호 패턴",
+    "owner": "test",
+    "target_types": ["phone"]
+  },
+  {
+    "type": "pattern",
+    "value": "(?i)xssf|h4ck|0day|exploit",
+    "label": "해킹 관련 키워드",
+    "owner": "test"
   }
 ]
