@@ -10,13 +10,21 @@ Darkweb Monitor continuously scans target sites, extracts indicators (email, dom
 
 ---
 
-## Quick Start
+## Quick Start (Local)
 
 ```bash
 pip install -r requirements.txt
 playwright install
 python -m app.init_db
 python run.py
+```
+
+---
+
+## Quick Start (Docker)
+
+```bash
+docker-compose up --build
 ```
 
 ---
@@ -43,14 +51,30 @@ targets → crawl → extract → match → save → alert
 
 ---
 
-## Notes
+## Environment Notes
+
+### Local
+```env
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/intel
+TOR_PROXY_URL=socks5h://127.0.0.1:9050
+```
+
+### Docker
+```env
+DATABASE_URL=postgresql://user:password@db:5432/intel
+TOR_PROXY_URL=socks5h://tor:9050
+```
+
+---
+
+## Features
 
 - Supports Tor (.onion)
-- Uses PostgreSQL
-- Alerts via Discord / Telegram
+- PostgreSQL storage
+- Alerting via Discord / Telegram
 
 ---
 
 ## More Details
 
-See `README_OPERATIONS.md` for full documentation.
+See `README_OPERATIONS_FULL.md` for full documentation.
