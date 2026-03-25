@@ -40,7 +40,7 @@
     "owner": "test"
   },
   {
-    "type": "btc_address",
+    "type": "btc",
     "value": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080",
     "owner": "test"
   }
