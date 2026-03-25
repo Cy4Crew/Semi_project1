@@ -9,11 +9,6 @@ dist/
 build/
 .eggs/
 
-# 가상환경
-venv/
-.venv/
-env/
-
 # 크롤링 수집 데이터 (용량 크고 민감한 정보 포함)
 evidence/
 
