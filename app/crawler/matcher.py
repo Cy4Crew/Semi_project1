@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from hashlib import sha256
+from urllib.parse import urlparse
 
 from app.core.config import settings
 from app.repository import alerts as alerts_repo
@@ -44,10 +45,10 @@ def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], s
         if not matched:
             continue
 
-        # page_id를 fingerprint에서 제외해야 같은 값이 여러 페이지에 나와도
-        # 동일한 watchlist hit로 집계되고 cooldown이 제대로 동작한다.
+        host = urlparse(item["page_url"]).netloc.lower()
+
         fingerprint = sha256(
-            f"{matched['id']}|{item['type']}|{item['normalized']}".encode("utf-8")
+           f"{matched['id']}|{item['type']}|{item['normalized']}|{item['page_url']}".encode("utf-8")
         ).hexdigest()
 
         result = hits_repo.upsert_watchlist_hit(
