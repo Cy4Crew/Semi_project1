@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -22,8 +22,12 @@ app.include_router(watchlist_router)
 app.include_router(hits_router)
 app.include_router(pages_router)
 
+# 정적 파일 서빙
 if settings.evidence_dir.exists():
     app.mount("/evidence", StaticFiles(directory=str(settings.evidence_dir)), name="evidence")
+
+if settings.ui_dir.exists():
+    app.mount("/ui", StaticFiles(directory=str(settings.ui_dir)), name="ui")
 
 
 @app.get("/health")
@@ -61,4 +65,30 @@ def reload_now() -> ReloadResponse:
         loaded_targets = load_targets_file(conn, settings.targets_seed_path)
         loaded_watchlist = load_watchlist_file(conn, settings.watchlist_seed_path)
         conn.commit()
-        return ReloadResponse(status="ok", loaded_targets=loaded_targets, loaded_watchlist=loaded_watchlist)
+        return ReloadResponse(
+            status="ok",
+            loaded_targets=loaded_targets,
+            loaded_watchlist=loaded_watchlist,
+        )
+
+
+# 잘못 저장된 screenshot_path 보정용 라우트
+# 예:
+# /app/evidence/screenshots/xxx.png
+# /evidence/screenshots/xxx.png
+# 둘 다 열리게 처리
+@app.get("/app/evidence/screenshots/{filename:path}")
+def legacy_screenshot(filename: str) -> FileResponse:
+    file_path = Path(settings.evidence_dir) / "screenshots" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(file_path)
+
+
+# 디버그용 직접 확인 라우트
+@app.get("/debug/screenshot/{filename:path}")
+def debug_screenshot(filename: str) -> FileResponse:
+    file_path = Path(settings.evidence_dir) / "screenshots" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(file_path)
