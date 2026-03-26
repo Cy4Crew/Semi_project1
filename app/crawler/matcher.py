@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from hashlib import sha256
-from urllib.parse import urlparse
 
 from app.core.config import settings
 from app.repository import alerts as alerts_repo
@@ -10,7 +9,7 @@ from app.repository import watchlist_hits as hits_repo
 
 
 def _get_alert_channels() -> list[str]:
-    channels = ["stdout"]
+    channels = []
 
     if settings.discord_webhook_url:
         channels.append("discord")
@@ -23,7 +22,7 @@ def _get_alert_channels() -> list[str]:
 
 def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], seen_at: str) -> list[int]:
     watchlist = watchlist_repo.list_enabled_watchlist(conn)
-    by_type = {}
+    by_type: dict[str, dict[str, dict]] = {}
 
     for item in watchlist:
         by_type.setdefault(item["type"], {})[item["normalized"]] = item
@@ -37,18 +36,17 @@ def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], s
             continue
 
         page_url = str(item["page_url"]).strip()
-        host = urlparse(page_url).netloc.lower()
-        if not host:
+        if not page_url:
             continue
 
-        # hit 기준: full URL
+        # hit은 URL 기준으로 누적
         hit_fingerprint = sha256(
             f"{matched['id']}|{item['type']}|{item['normalized']}|{page_url}".encode("utf-8")
         ).hexdigest()
 
-        # alert 기준: host
+        # alert는 값 기준으로 전역 1회만
         alert_fingerprint = sha256(
-            f"{matched['id']}|{item['type']}|{item['normalized']}|{host}".encode("utf-8")
+            f"{matched['id']}|{item['type']}|{item['normalized']}".encode("utf-8")
         ).hexdigest()
 
         result = hits_repo.upsert_watchlist_hit(
@@ -63,11 +61,13 @@ def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], s
 
         created_hit_ids.append(result["hit_id"])
 
-        # 같은 URL 재스캔이면 is_new=False
+        # 같은 URL 재스캔이면 새 hit가 아니므로
+        # alert도 만들지 않음
         if not result["is_new"]:
             continue
 
-        # 새 hit라도 같은 host에서 이미 alert 보낸 적 있으면 alert 생성 안 함
+        # 새 URL에서 나온 경우 hit는 추가되지만,
+        # alert는 해당 값이 처음일 때만 생성됨
         for channel in channels:
             alerts_repo.create_alert_if_not_exists(
                 conn,
