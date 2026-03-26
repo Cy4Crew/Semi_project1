@@ -85,6 +85,7 @@ class Scheduler:
                 self.seen_in_cycle.clear()
                 await self._enqueue_initial_targets()
             except Exception as e:
+                pass
             await asyncio.sleep(max(1, settings.poll_interval_seconds))
 
     async def _enqueue_initial_targets(self) -> None:
