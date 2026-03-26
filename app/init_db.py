@@ -125,6 +125,11 @@ def init_db(load_seed_data: bool = True) -> None:
             cur.execute(
                 "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_fingerprint TEXT"
             )
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_alert_fingerprint_channel
+                ON alerts(alert_fingerprint, channel)
+                WHERE alert_fingerprint IS NOT NULL
+            """)
 
             for stmt in INDEXES:
                 cur.execute(stmt)
