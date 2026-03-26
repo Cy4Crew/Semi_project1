@@ -16,6 +16,35 @@ def create_alert(conn, *, hit_id: int, channel: str, created_at: str) -> int:
         return int(cur.fetchone()["id"])
 
 
+def create_alert_if_not_exists(
+    conn,
+    *,
+    hit_id: int,
+    channel: str,
+    created_at: str,
+    alert_fingerprint: str,
+) -> int | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO alerts(hit_id, channel, status, created_at, alert_fingerprint)
+            VALUES(%s, %s, 'pending', %s::timestamptz, %s)
+            ON CONFLICT (alert_fingerprint, channel) DO NOTHING
+            RETURNING id
+            """,
+            (hit_id, channel, created_at, alert_fingerprint),
+        )
+        row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    if isinstance(row, dict):
+        return int(row["id"])
+
+    return int(row[0])
+
+
 def list_recent_alerts(conn, limit: int = 100) -> list[dict[str, Any]]:
     with conn.cursor() as cur:
         cur.execute(
