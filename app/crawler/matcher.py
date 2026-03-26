@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from hashlib import sha256
 from urllib.parse import urlparse
 
@@ -8,14 +7,6 @@ from app.core.config import settings
 from app.repository import alerts as alerts_repo
 from app.repository import watchlist as watchlist_repo
 from app.repository import watchlist_hits as hits_repo
-
-
-def _to_dt(value):
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value
-    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
 def _get_alert_channels() -> list[str]:
@@ -33,11 +24,11 @@ def _get_alert_channels() -> list[str]:
 def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], seen_at: str) -> list[int]:
     watchlist = watchlist_repo.list_enabled_watchlist(conn)
     by_type = {}
+
     for item in watchlist:
         by_type.setdefault(item["type"], {})[item["normalized"]] = item
 
     created_hit_ids: list[int] = []
-    seen_dt = _to_dt(seen_at) or datetime.now(timezone.utc)
     channels = _get_alert_channels()
 
     for item in extracted_items:
@@ -45,10 +36,19 @@ def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], s
         if not matched:
             continue
 
-        host = urlparse(item["page_url"]).netloc.lower()
+        page_url = str(item["page_url"]).strip()
+        host = urlparse(page_url).netloc.lower()
+        if not host:
+            continue
 
-        fingerprint = sha256(
-           f"{matched['id']}|{item['type']}|{item['normalized']}|{item['page_url']}".encode("utf-8")
+        # hit 기준: full URL
+        hit_fingerprint = sha256(
+            f"{matched['id']}|{item['type']}|{item['normalized']}|{page_url}".encode("utf-8")
+        ).hexdigest()
+
+        # alert 기준: host
+        alert_fingerprint = sha256(
+            f"{matched['id']}|{item['type']}|{item['normalized']}|{host}".encode("utf-8")
         ).hexdigest()
 
         result = hits_repo.upsert_watchlist_hit(
@@ -57,32 +57,24 @@ def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], s
             watchlist_id=int(matched["id"]),
             page_id=page_id,
             matched_value=item["raw"],
-            fingerprint=fingerprint,
+            fingerprint=hit_fingerprint,
             seen_at=seen_at,
         )
 
-        should_alert = result["is_new"]
-        last_alerted_at = _to_dt(result.get("last_alerted_at"))
+        created_hit_ids.append(result["hit_id"])
 
-        if not should_alert and last_alerted_at is not None:
-            should_alert = (
-                seen_dt - last_alerted_at
-            ).total_seconds() >= settings.alert_cooldown_seconds
+        # 같은 URL 재스캔이면 is_new=False
+        if not result["is_new"]:
+            continue
 
-        if should_alert:
-            for channel in channels:
-                alerts_repo.create_alert(
-                    conn,
-                    hit_id=result["hit_id"],
-                    channel=channel,
-                    created_at=seen_at,
-                )
-            hits_repo.touch_last_alerted_at(
+        # 새 hit라도 같은 host에서 이미 alert 보낸 적 있으면 alert 생성 안 함
+        for channel in channels:
+            alerts_repo.create_alert_if_not_exists(
                 conn,
                 hit_id=result["hit_id"],
-                alerted_at=seen_at,
+                channel=channel,
+                created_at=seen_at,
+                alert_fingerprint=alert_fingerprint,
             )
-
-        created_hit_ids.append(result["hit_id"])
 
     return created_hit_ids
