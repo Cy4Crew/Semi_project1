@@ -216,7 +216,7 @@ class Scheduler:
                 group_key=item["group_key"],
                 first_seen_at=fetched_at,
             )
-            items.append({**item, "id": item_id})
+            items.append({**item, "id": item_id, "page_url": result.url})
 
         match_and_queue_alerts(conn, page_id=page_id, extracted_items=items, seen_at=fetched_at)
 
