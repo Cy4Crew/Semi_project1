@@ -25,6 +25,36 @@ from app.repository.targets import (
 
 logger = logging.getLogger(__name__)
 
+# === URL 필터/우선순위 ===
+HARD_BLOCK = ("login", "register", "lostpw")
+
+LOW_PRIORITY = (
+    "member",
+    "user-",
+    "memberlist",
+    "search",
+    "showteam",
+    "status",
+    "misc.php?page=chat",  # chat은 차단이 아니라 저우선순위
+)
+
+HIGH_PRIORITY = ("thread-", "forum-", "pid=", "lastpost")
+
+
+def classify_url(url: str) -> int:
+    low = url.lower()
+
+    if any(x in low for x in HARD_BLOCK):
+        return -1
+
+    if any(x in low for x in HIGH_PRIORITY):
+        return 2
+
+    if any(x in low for x in LOW_PRIORITY):
+        return 0
+
+    return 1
+
 
 class Scheduler:
     def __init__(self) -> None:
@@ -68,13 +98,11 @@ class Scheduler:
                 try:
                     target_id = int(item["id"])
                     url = self._normalize_url(item["seed_url"])
-
                     if not url:
                         continue
 
                     mark_target_queued(conn, target_id)
-                    print(f"[QUEUE] target_id={target_id} depth=0 url={url}")
-                    await self._enqueue(url, depth=0, target_id=target_id)
+                    await self._enqueue(url, 0, target_id)
 
                 except Exception as e:
                     print(f"[SKIP TARGET] {e}")
@@ -120,23 +148,16 @@ class Scheduler:
     async def _worker_loop(self, worker_id: int) -> None:
         while True:
             url, depth, target_id = await self.queue.get()
-            print(f"[WORKER {worker_id}] picked depth={depth} target_id={target_id} url={url}")
 
             failed = False
-
             try:
                 with get_conn() as conn:
-                    await self._process_url(
-                        conn=conn,
-                        url=url,
-                        depth=depth,
-                        target_id=target_id,
-                    )
+                    await self._process_url(conn=conn, url=url, depth=depth, target_id=target_id)
                     conn.commit()
 
             except Exception as e:
                 failed = True
-                print(f"[WORKER {worker_id}] error target_id={target_id} url={url} err={e}")
+                print(f"[ERROR] {url} {e}")
 
                 with get_conn() as conn:
                     if target_id is not None:
@@ -146,10 +167,8 @@ class Scheduler:
             finally:
                 if target_id is not None:
                     self.target_inflight[target_id] -= 1
-
                     if self.target_inflight[target_id] <= 0:
                         del self.target_inflight[target_id]
-
                         if not failed:
                             with get_conn() as conn:
                                 mark_target_done(conn, target_id)
@@ -160,25 +179,15 @@ class Scheduler:
     async def _process_url(self, *, conn, url: str, depth: int, target_id: int | None) -> None:
         fetched_at = datetime.now(timezone.utc).isoformat()
 
-        print(f"[FETCH START] {url}")
         result = await fetch_page(url)
-        print(f"[FETCH DONE] {url} status={result.status_code} err={result.error_message}")
+        if not result.text:
+            return
 
-        meaningful = bool(result.text.strip())
-        skip_reason = None if meaningful else "empty_text"
-
-        print(f"[SCREENSHOT START] {result.url}")
         screenshot_path = await take_screenshot(result.url)
-        print(f"[SCREENSHOT DONE] {result.url} path={screenshot_path}")
 
         previous = pages_repo.get_latest_page_snapshot(conn, result.url)
         changed = previous is None or previous["content_hash"] != result.content_hash
-        last_changed_at = fetched_at if changed else (previous["last_changed_at"] if previous else fetched_at)
 
-        html_path = self._save_text_file(settings.html_dir, result.url, result.html, ".html") if result.html else None
-        text_path = self._save_text_file(settings.text_dir, result.url, result.text, ".txt") if result.text else None
-
-        print(f"[SAVE PAGE] {result.url}")
         page_id = pages_repo.save_page(
             conn,
             target_id=target_id,
@@ -188,18 +197,17 @@ class Scheduler:
             status_code=result.status_code,
             fetched_at=fetched_at,
             content_hash=result.content_hash,
-            last_changed_at=last_changed_at,
-            is_meaningful=meaningful,
-            skip_reason=skip_reason,
+            last_changed_at=fetched_at,
+            is_meaningful=True,
+            skip_reason=None,
             content_changed=changed,
-            raw_html_path=html_path,
-            text_dump_path=text_path,
+            raw_html_path=None,
+            text_dump_path=None,
             screenshot_path=screenshot_path,
             error_message=result.error_message,
         )
 
-        saved_items: list[dict] = []
-
+        items = []
         for item in extract_indicators(result.text):
             item_id = extracted_repo.save_extracted_item(
                 conn,
@@ -210,20 +218,18 @@ class Scheduler:
                 group_key=item["group_key"],
                 first_seen_at=fetched_at,
             )
-            saved_items.append({**item, "id": item_id})
+            items.append({**item, "id": item_id})
 
-        match_and_queue_alerts(
-            conn,
-            page_id=page_id,
-            extracted_items=saved_items,
-            seen_at=fetched_at,
-        )
+        match_and_queue_alerts(conn, page_id=page_id, extracted_items=items, seen_at=fetched_at)
+
+        # === 핵심: changed일 때만 확장 ===
+        if not changed:
+            return
 
         if depth < settings.max_depth:
             current_host = urlparse(result.url).netloc.lower()
-            count = 0
-            max_children = 30
 
+            links = []
             for link in result.links:
                 normalized = self._normalize_url(link)
                 if not normalized:
@@ -232,23 +238,22 @@ class Scheduler:
                 if urlparse(normalized).netloc.lower() != current_host:
                     continue
 
-                if count >= max_children:
-                    break
+                priority = classify_url(normalized)
+                if priority == -1:
+                    continue
 
-                await self._enqueue(normalized, depth + 1, target_id)
+                links.append((priority, normalized))
+
+            links.sort(key=lambda x: -x[0])
+
+            count = 0
+            for _, link in links:
+                if count >= 30:
+                    break
+                await self._enqueue(link, depth + 1, target_id)
                 count += 1
 
             print(f"[DEPTH] queued {count} children from {result.url}")
-
-    def _safe_name(self, url: str) -> str:
-        host = urlparse(url).netloc.replace(":", "_") or "page"
-        return f"{host}_{sha1(url.encode()).hexdigest()[:12]}"
-
-    def _save_text_file(self, folder: Path, url: str, content: str, suffix: str) -> str:
-        folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"{self._safe_name(url)}{suffix}"
-        path.write_text(content, encoding="utf-8", errors="ignore")
-        return str(path)
 
 
 scheduler = Scheduler()
