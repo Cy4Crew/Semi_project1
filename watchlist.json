@@ -19,5 +19,27 @@
 
   { "type": "btc", "pattern": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080", "label": "test" },
 
-  { "type": "hash", "pattern": "5d41402abc4b2a76b9719d911017c592", "label": "test" }
+  { "type": "hash", "pattern": "5d41402abc4b2a76b9719d911017c592", "label": "test" },
+  { "type": "domain", "pattern": "gmail.com", "label": "common-domain" },
+  { "type": "domain", "pattern": "yahoo.com", "label": "common-domain" },
+  { "type": "domain", "pattern": "outlook.com", "label": "common-domain" },
+
+  { "type": "telegram", "pattern": "t.me", "label": "telegram-common" },
+
+  { "type": "url", "pattern": "http://", "label": "url-common" },
+  { "type": "url", "pattern": "https://", "label": "url-common" },
+
+  { "type": "onion", "pattern": ".onion", "label": "onion-common" },
+
+  { "type": "btc", "pattern": "bc1", "label": "btc-common" },
+  { "type": "btc", "pattern": "1A", "label": "btc-common" },
+
+  { "type": "email", "pattern": "@gmail.com", "label": "email-common" },
+  { "type": "email", "pattern": "@yahoo.com", "label": "email-common" },
+
+  { "type": "username", "pattern": "admin", "label": "user-common" },
+  { "type": "username", "pattern": "root", "label": "user-common" },
+
+  { "type": "hash", "pattern": "e99a18c428cb38d5f260853678922e03", "label": "hash-md5" },
+  { "type": "hash", "pattern": "098f6bcd4621d373cade4e832627b4f6", "label": "hash-md5" }
 ]
