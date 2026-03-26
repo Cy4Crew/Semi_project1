@@ -9,6 +9,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intel -d intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   tor:
     image: osminogin/tor-simple:latest
@@ -18,8 +24,10 @@ services:
   app:
     build: .
     depends_on:
-      - db
-      - tor
+      db:
+        condition: service_healthy
+      tor:
+        condition: service_started
     env_file:
       - .env
     ports:
