@@ -83,7 +83,6 @@ class Scheduler:
             try:
                 self.host_counts.clear()
                 self.seen_in_cycle.clear()
-                print("[PRODUCER] checking due targets...")
                 await self._enqueue_initial_targets()
             except Exception as e:
                 print(f"[PRODUCER] error: {e}")
@@ -92,7 +91,6 @@ class Scheduler:
     async def _enqueue_initial_targets(self) -> None:
         with get_conn() as conn:
             targets = get_due_targets(conn, settings.revisit_after_seconds)
-            print(f"[PRODUCER] due_targets={len(targets)}")
 
             for item in targets:
                 try:
