@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -19,8 +20,35 @@ pool = ConnectionPool(
 
 
 def open_pool() -> None:
-    if pool.closed:
-        pool.open(wait=True)
+    last_error = None
+
+    if not pool.closed:
+        return
+
+    for attempt in range(1, 16):
+        try:
+            pool.open(wait=True)
+
+            with pool.connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+
+            print(f"[DB] pool ready (attempt={attempt})")
+            return
+
+        except Exception as e:
+            last_error = e
+            print(f"[DB] connect retry {attempt}/15 failed: {e}")
+
+            try:
+                if not pool.closed:
+                    pool.close()
+            except Exception:
+                pass
+
+            time.sleep(2)
+
+    raise RuntimeError(f"database connection failed after retries: {last_error}")
 
 
 def close_pool() -> None:
