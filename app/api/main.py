@@ -51,7 +51,7 @@ def summary() -> dict:
                     (SELECT COUNT(*) FROM pages) AS pages,
                     (SELECT COUNT(*) FROM extracted_items) AS extracted,
                     (SELECT COUNT(*) FROM watchlist_hits) AS hits,
-                    (SELECT COUNT(*) FROM alerts) AS alerts
+                    (SELECT COUNT(*) FROM alerts WHERE channel != 'stdout') AS alerts
                 """
             )
             row = cur.fetchone()
