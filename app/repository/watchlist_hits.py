@@ -1,6 +1,49 @@
 from __future__ import annotations
 
-from typing import Any
+
+def _as_dict(row, columns: list[str]) -> dict | None:
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return dict(row)
+    return {col: row[idx] for idx, col in enumerate(columns)}
+
+
+def get_watchlist_hit_by_fingerprint(conn, fingerprint: str):
+    columns = [
+        "id",
+        "extracted_item_id",
+        "watchlist_id",
+        "page_id",
+        "matched_value",
+        "fingerprint",
+        "first_seen_at",
+        "last_seen_at",
+        "last_alerted_at",
+    ]
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                id,
+                extracted_item_id,
+                watchlist_id,
+                page_id,
+                matched_value,
+                fingerprint,
+                first_seen_at,
+                last_seen_at,
+                last_alerted_at
+            FROM watchlist_hits
+            WHERE fingerprint = %s
+            LIMIT 1
+            """,
+            (fingerprint,),
+        )
+        row = cur.fetchone()
+
+    return _as_dict(row, columns)
 
 
 def upsert_watchlist_hit(
@@ -12,64 +55,182 @@ def upsert_watchlist_hit(
     matched_value: str,
     fingerprint: str,
     seen_at: str,
-) -> dict[str, Any]:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO watchlist_hits(
-                extracted_item_id, watchlist_id, page_id, matched_value, fingerprint,
-                first_seen_at, last_seen_at
-            ) VALUES(%s, %s, %s, %s, %s, %s::timestamptz, %s::timestamptz)
-            ON CONFLICT (fingerprint)
-            DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at, matched_value = EXCLUDED.matched_value
-            RETURNING id, xmax = 0 AS inserted, last_alerted_at
-            """,
-            (extracted_item_id, watchlist_id, page_id, matched_value, fingerprint, seen_at, seen_at),
-        )
-        row = cur.fetchone()
+):
+    existing = get_watchlist_hit_by_fingerprint(conn, fingerprint)
+
+    if existing:
+        columns = ["hit_id", "last_alerted_at"]
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE watchlist_hits
+                SET
+                    extracted_item_id = %s,
+                    page_id = %s,
+                    matched_value = %s,
+                    last_seen_at = %s
+                WHERE id = %s
+                RETURNING id AS hit_id, last_alerted_at
+                """,
+                (
+                    extracted_item_id,
+                    page_id,
+                    matched_value,
+                    seen_at,
+                    existing["id"],
+                ),
+            )
+            row = cur.fetchone()
+
+        result = _as_dict(row, columns)
         return {
-            "hit_id": int(row["id"]),
-            "is_new": bool(row["inserted"]),
-            "last_alerted_at": row["last_alerted_at"],
+            "hit_id": result["hit_id"],
+            "is_new": False,
+            "last_alerted_at": result["last_alerted_at"],
         }
 
-
-def touch_last_alerted_at(conn, hit_id: int, alerted_at: str) -> None:
-    with conn.cursor() as cur:
-        cur.execute("UPDATE watchlist_hits SET last_alerted_at = %s::timestamptz WHERE id = %s", (alerted_at, hit_id))
-
-
-def get_hit_detail(conn, hit_id: int) -> dict[str, Any] | None:
+    columns = ["hit_id", "last_alerted_at"]
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT h.id, h.page_id, h.watchlist_id, h.matched_value, h.first_seen_at, h.last_seen_at, h.last_alerted_at,
-                   w.type AS watch_type, w.value AS watch_value, w.label,
-                   ei.type AS extracted_type, ei.raw, ei.normalized,
-                   p.url, p.title, p.screenshot_path
+            INSERT INTO watchlist_hits (
+                extracted_item_id,
+                watchlist_id,
+                page_id,
+                matched_value,
+                fingerprint,
+                first_seen_at,
+                last_seen_at,
+                last_alerted_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NULL)
+            RETURNING id AS hit_id, last_alerted_at
+            """,
+            (
+                extracted_item_id,
+                watchlist_id,
+                page_id,
+                matched_value,
+                fingerprint,
+                seen_at,
+                seen_at,
+            ),
+        )
+        row = cur.fetchone()
+
+    result = _as_dict(row, columns)
+    return {
+        "hit_id": result["hit_id"],
+        "is_new": True,
+        "last_alerted_at": result["last_alerted_at"],
+    }
+
+
+def touch_last_alerted_at(conn, *, hit_id: int, alerted_at: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE watchlist_hits
+            SET last_alerted_at = %s
+            WHERE id = %s
+            """,
+            (alerted_at, hit_id),
+        )
+
+
+def get_hit_detail(conn, hit_id: int):
+    columns = [
+        "id",
+        "matched_value",
+        "fingerprint",
+        "first_seen_at",
+        "last_seen_at",
+        "last_alerted_at",
+        "page_id",
+        "watchlist_id",
+        "url",
+        "title",
+        "screenshot_path",
+        "watch_type",
+        "watch_value",
+        "label",
+    ]
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                h.id,
+                h.matched_value,
+                h.fingerprint,
+                h.first_seen_at,
+                h.last_seen_at,
+                h.last_alerted_at,
+                h.page_id,
+                h.watchlist_id,
+                p.url,
+                p.title,
+                p.screenshot_path,
+                w.type AS watch_type,
+                w.normalized AS watch_value,
+                w.label
             FROM watchlist_hits h
-            JOIN watchlist w ON w.id = h.watchlist_id
-            JOIN extracted_items ei ON ei.id = h.extracted_item_id
-            JOIN pages p ON p.id = h.page_id
+            LEFT JOIN pages p ON p.id = h.page_id
+            LEFT JOIN watchlist w ON w.id = h.watchlist_id
             WHERE h.id = %s
+            LIMIT 1
             """,
             (hit_id,),
         )
-        return cur.fetchone()
+        row = cur.fetchone()
+
+    return _as_dict(row, columns)
 
 
-def list_recent_hits(conn, limit: int = 100) -> list[dict[str, Any]]:
+def list_recent_hits(conn, limit: int = 20) -> list[dict]:
+    columns = [
+        "id",
+        "matched_value",
+        "fingerprint",
+        "first_seen_at",
+        "last_seen_at",
+        "last_alerted_at",
+        "page_id",
+        "watchlist_id",
+        "url",
+        "title",
+        "screenshot_path",
+        "watch_type",
+        "watch_value",
+        "label",
+    ]
+
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT h.id, h.page_id, h.watchlist_id, h.matched_value, h.first_seen_at, h.last_seen_at, h.last_alerted_at,
-                   w.type AS watch_type, w.value AS watch_value, w.label, p.url, p.title, p.screenshot_path
+            SELECT
+                h.id,
+                h.matched_value,
+                h.fingerprint,
+                h.first_seen_at,
+                h.last_seen_at,
+                h.last_alerted_at,
+                h.page_id,
+                h.watchlist_id,
+                p.url,
+                p.title,
+                p.screenshot_path,
+                w.type AS watch_type,
+                w.normalized AS watch_value,
+                w.label
             FROM watchlist_hits h
-            JOIN watchlist w ON w.id = h.watchlist_id
-            JOIN pages p ON p.id = h.page_id
-            ORDER BY h.id DESC
+            LEFT JOIN pages p ON p.id = h.page_id
+            LEFT JOIN watchlist w ON w.id = h.watchlist_id
+            ORDER BY h.last_seen_at DESC NULLS LAST, h.id DESC
             LIMIT %s
             """,
             (limit,),
         )
-        return list(cur.fetchall())
+        rows = cur.fetchall()
+
+    return [_as_dict(row, columns) for row in rows]
