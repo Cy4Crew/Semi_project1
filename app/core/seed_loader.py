@@ -21,23 +21,9 @@ def _read_json(path: Path) -> list[dict]:
 
 
 def load_targets_file(conn, path: Path) -> int:
-    count = 0
-    for item in _read_json(path):
-        seed_url = str(item.get("seed_url", "")).strip()
-        if not seed_url:
-            continue
-
-        name = str(item.get("name", seed_url)).strip() or seed_url
-
-        try:
-            targets_repo.create_target(conn, name=name, seed_url=seed_url)
-            count += 1
-        except Exception:
-            # 중복 seed_url 등은 무시
-            continue
-
-    conn.commit()
-    return count
+    items = _read_json(path)
+    result = targets_repo.upsert_targets_from_seed(conn, items)
+    return int(result["seed_count"])
 
 
 def load_watchlist_file(conn, path: Path) -> int:
