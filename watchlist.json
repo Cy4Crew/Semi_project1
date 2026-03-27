@@ -4,78 +4,109 @@
     "patterns": ["test@example.com", "admin@example.com"],
     "label": "test"
   },
-
-  {
-    "type": "domain",
-    "patterns": ["mail.ru", "temp-mail.org"],
-    "label": "test"
-  },
-
-  {
-    "type": "phone",
-    "patterns": ["01012345678"],
-    "label": "test"
-  },
-
-  {
-    "type": "username",
-    "patterns": ["xssf", "h4x0r"],
-    "label": "test"
-  },
-
-  {
-    "type": "ipv4",
-    "patterns": ["8.8.8.8"],
-    "label": "test"
-  },
-
-  {
-    "type": "url",
-    "patterns": ["https://xssf.net"],
-    "label": "test"
-  },
-
-  {
-    "type": "api_key",
-    "patterns": ["akiaiosfodnn7example"],
-    "label": "test"
-  },
-
-  {
-    "type": "onion",
-    "patterns": ["suprbaydvdcaynfo4dgdzgxb4zuso7rftlil5yg5kqjefnw4wq4ulcad.onion"],
-    "label": "test"
-  },
-
-  {
-    "type": "telegram",
-    "patterns": ["t.me/tron993", "t.me/darkweb_market"],
-    "label": "test"
-  },
-
-  {
-    "type": "btc",
-    "patterns": ["bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080"],
-    "label": "test"
-  },
-
-  {
-    "type": "hash",
-    "patterns": ["5d41402abc4b2a76b9719d911017c592"],
-    "label": "test"
-  },
-
   {
     "type": "email",
     "patterns": [".*@darkforum\\.onion", ".*@leaksite\\.ru"],
     "is_regex": true,
     "label": "darkforum-emails"
   },
-
+  {
+    "type": "email",
+    "patterns": ["@gmail.com", "@yahoo.com"],
+    "label": "email-common"
+  },
+  {
+    "type": "domain",
+    "patterns": ["mail.ru", "temp-mail.org"],
+    "label": "test"
+  },
   {
     "type": "domain",
     "patterns": [".*\\.ru$", ".*\\.su$"],
     "is_regex": true,
     "label": "russian-tld"
+  },
+  {
+    "type": "domain",
+    "patterns": ["gmail.com", "yahoo.com", "outlook.com"],
+    "label": "common-domain"
+  },
+  {
+    "type": "phone",
+    "patterns": ["01012345678"],
+    "label": "test"
+  },
+  {
+    "type": "username",
+    "patterns": ["xssf", "h4x0r"],
+    "label": "test"
+  },
+  {
+    "type": "username",
+    "patterns": ["admin", "root"],
+    "label": "user-common"
+  },
+  {
+    "type": "ipv4",
+    "patterns": ["8.8.8.8"],
+    "label": "test"
+  },
+  {
+    "type": "url",
+    "patterns": ["https://xssf.net"],
+    "label": "test"
+  },
+  {
+    "type": "url",
+    "patterns": ["http://", "https://"],
+    "label": "url-common"
+  },
+  {
+    "type": "api_key",
+    "patterns": ["akiaiosfodnn7example"],
+    "label": "test"
+  },
+  {
+    "type": "onion",
+    "patterns": ["suprbaydvdcaynfo4dgdzgxb4zuso7rftlil5yg5kqjefnw4wq4ulcad.onion"],
+    "label": "test"
+  },
+  {
+    "type": "onion",
+    "patterns": [".onion"],
+    "label": "onion-common"
+  },
+  {
+    "type": "telegram",
+    "patterns": ["t.me/tron993", "t.me/darkweb_market"],
+    "label": "test"
+  },
+  {
+    "type": "telegram",
+    "patterns": ["t.me"],
+    "label": "telegram-common"
+  },
+  {
+    "type": "btc",
+    "patterns": ["bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080"],
+    "label": "test"
+  },
+  {
+    "type": "btc",
+    "patterns": ["bc1", "1A"],
+    "label": "btc-common"
+  },
+  {
+    "type": "hash",
+    "patterns": ["5d41402abc4b2a76b9719d911017c592"],
+    "label": "test"
+  },
+  {
+    "type": "hash",
+    "patterns": [
+      "e99a18c428cb38d5f260853678922e03",
+      "098f6bcd4621d373cade4e832627b4f6"
+    ],
+    "label": "hash-md5"
   }
 ]

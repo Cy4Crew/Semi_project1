@@ -14,16 +14,8 @@ from app.repository import watchlist_hits as hits_repo
 logger = logging.getLogger(__name__)
 
 
-def _to_dt(value):
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value
-    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-
-
 def _get_alert_channels() -> list[str]:
-    channels = ["stdout"]
+    channels = []
 
     if settings.discord_webhook_url:
         channels.append("discord")
@@ -83,18 +75,11 @@ def _find_match(compiled: _CompiledWatchlist, item_type: str, normalized: str) -
     return None
 
 
-def match_and_queue_alerts(
-    conn,
-    *,
-    page_id: int,
-    extracted_items: list[dict],
-    seen_at: str,
-) -> list[int]:
+def match_and_queue_alerts(conn, *, page_id: int, extracted_items: list[dict], seen_at: str) -> list[int]:
     watchlist = watchlist_repo.list_enabled_watchlist(conn)
     compiled = _build_compiled_watchlist(watchlist)
 
     created_hit_ids: list[int] = []
-    seen_dt = _to_dt(seen_at) or datetime.now(timezone.utc)
     channels = _get_alert_channels()
 
     for item in extracted_items:
@@ -102,9 +87,17 @@ def match_and_queue_alerts(
         if not matched:
             continue
 
-        # page_id를 fingerprint에서 제외해야 같은 값이 여러 페이지에 나와도
-        # 동일한 watchlist hit로 집계되고 cooldown이 제대로 동작한다.
-        fingerprint = sha256(
+        page_url = str(item["page_url"]).strip()
+        if not page_url:
+            continue
+
+        # hit은 URL 기준으로 누적
+        hit_fingerprint = sha256(
+            f"{matched['id']}|{item['type']}|{item['normalized']}|{page_url}".encode("utf-8")
+        ).hexdigest()
+
+        # alert는 값 기준으로 전역 1회만
+        alert_fingerprint = sha256(
             f"{matched['id']}|{item['type']}|{item['normalized']}".encode("utf-8")
         ).hexdigest()
 
@@ -114,32 +107,26 @@ def match_and_queue_alerts(
             watchlist_id=int(matched["id"]),
             page_id=page_id,
             matched_value=item["raw"],
-            fingerprint=fingerprint,
+            fingerprint=hit_fingerprint,
             seen_at=seen_at,
         )
 
-        should_alert = result["is_new"]
-        last_alerted_at = _to_dt(result.get("last_alerted_at"))
+        created_hit_ids.append(result["hit_id"])
 
-        if not should_alert and last_alerted_at is not None:
-            should_alert = (
-                seen_dt - last_alerted_at
-            ).total_seconds() >= settings.alert_cooldown_seconds
+        # 같은 URL 재스캔이면 새 hit가 아니므로
+        # alert도 만들지 않음
+        if not result["is_new"]:
+            continue
 
-        if should_alert:
-            for channel in channels:
-                alerts_repo.create_alert(
-                    conn,
-                    hit_id=result["hit_id"],
-                    channel=channel,
-                    created_at=seen_at,
-                )
-            hits_repo.touch_last_alerted_at(
+        # 새 URL에서 나온 경우 hit는 추가되지만,
+        # alert는 해당 값이 처음일 때만 생성됨
+        for channel in channels:
+            alerts_repo.create_alert_if_not_exists(
                 conn,
                 hit_id=result["hit_id"],
-                alerted_at=seen_at,
+                channel=channel,
+                created_at=seen_at,
+                alert_fingerprint=alert_fingerprint,
             )
-
-        created_hit_ids.append(result["hit_id"])
 
     return created_hit_ids

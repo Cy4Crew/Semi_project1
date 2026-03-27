@@ -83,16 +83,14 @@ class Scheduler:
             try:
                 self.host_counts.clear()
                 self.seen_in_cycle.clear()
-                print("[PRODUCER] checking due targets...")
                 await self._enqueue_initial_targets()
             except Exception as e:
-                print(f"[PRODUCER] error: {e}")
+                pass
             await asyncio.sleep(max(1, settings.poll_interval_seconds))
 
     async def _enqueue_initial_targets(self) -> None:
         with get_conn() as conn:
             targets = get_due_targets(conn, settings.revisit_after_seconds)
-            print(f"[PRODUCER] due_targets={len(targets)}")
 
             for item in targets:
                 try:
@@ -218,7 +216,7 @@ class Scheduler:
                 group_key=item["group_key"],
                 first_seen_at=fetched_at,
             )
-            items.append({**item, "id": item_id})
+            items.append({**item, "id": item_id, "page_url": result.url})
 
         match_and_queue_alerts(conn, page_id=page_id, extracted_items=items, seen_at=fetched_at)
 

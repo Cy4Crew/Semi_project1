@@ -83,7 +83,8 @@ SCHEMA = [
         status TEXT NOT NULL,
         error_message TEXT,
         created_at TIMESTAMPTZ NOT NULL,
-        sent_at TIMESTAMPTZ
+        sent_at TIMESTAMPTZ,
+        alert_fingerprint TEXT
     )
     """,
 ]
@@ -97,6 +98,7 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_watchlist_hits_watchlist_id ON watchlist_hits(watchlist_id)",
     "CREATE INDEX IF NOT EXISTS idx_watchlist_hits_last_seen_at ON watchlist_hits(last_seen_at)",
     "CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_alert_fingerprint_channel ON alerts(alert_fingerprint, channel) WHERE alert_fingerprint IS NOT NULL",
 ]
 
 
@@ -121,6 +123,14 @@ def init_db(load_seed_data: bool = True) -> None:
             cur.execute(
                 "ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ"
             )
+            cur.execute(
+                "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_fingerprint TEXT"
+            )
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_alert_fingerprint_channel
+                ON alerts(alert_fingerprint, channel)
+                WHERE alert_fingerprint IS NOT NULL
+            """)
 
             # watchlist 정규표현식 지원 마이그레이션
             cur.execute(
