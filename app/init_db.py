@@ -57,6 +57,7 @@ SCHEMA = [
         normalized TEXT NOT NULL,
         label TEXT,
         enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        is_regex BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(type, normalized)
     )
@@ -130,6 +131,11 @@ def init_db(load_seed_data: bool = True) -> None:
                 ON alerts(alert_fingerprint, channel)
                 WHERE alert_fingerprint IS NOT NULL
             """)
+
+            # watchlist 정규표현식 지원 마이그레이션
+            cur.execute(
+                "ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS is_regex BOOLEAN NOT NULL DEFAULT FALSE"
+            )
 
             for stmt in INDEXES:
                 cur.execute(stmt)
