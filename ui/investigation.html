@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Investigation</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'investigation',
+  heroEyebrow: 'Investigation Workspace',
+  heroTitle: 'Hit Investigation',
+  heroDesc: '선택한 hit를 중심으로 타임라인, 같은 IOC, 관련 알림, 같은 target 활동을 하나의 화면에서 이어서 본다. Hits 페이지에서 선택한 항목도 유지된다.',
+  heroMeta: ['selection persisted', 'timeline review', 'priority focused'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Jump to Hit</div>
+    <label class="field-label" for="hitPicker">Recent Hit</label>
+    <select id="hitPicker" class="control"><option value="">선택</option></select>
+    <label class="field-label" for="searchBox">검색</label>
+    <input id="searchBox" class="control" type="text" placeholder="matched / url / label" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <div id="selectedBanner"></div>
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Investigation Feed</div>
+            <div class="panel-sub">선택한 hit와 관련성이 높은 이벤트를 시간순으로 정리</div>
+          </div>
+          <span class="pill" id="feedPill">0 items</span>
+        </div>
+        <div id="summaryBox" class="section-stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Evidence & Correlation</div>
+            <div class="panel-sub">증거, 반복 출현, 관련 alerts, 같은 target 활동을 분리해 표시</div>
+          </div>
+        </div>
+        <div id="detailBox" class="mini-desc">hit를 선택하면 조사 패널이 채워진다.</div>
+      </section>
+    </section>`
+});
+
+const store = { hits: [], alerts: [], pages: [], extracted: [], targets: [], selected: null };
+
+function sameValueHits(hit) {
+  return store.hits.filter(h => String(h.matched_value || '').toLowerCase() === String(hit.matched_value || '').toLowerCase());
+}
+function sameUrlHits(hit) {
+  return store.hits.filter(h => String(h.url || '') === String(hit.url || ''));
+}
+function sameTargetHits(hit) {
+  return store.hits.filter(h => String(h.target_id || '') === String(hit.target_id || '') && String(hit.target_id || '') !== '');
+}
+function pageForHit(hit) {
+  return store.pages.find(p => String(p.id) === String(hit.page_id));
+}
+function extractedForPage(hit) {
+  return store.extracted.filter(e => String(e.page_id) === String(hit.page_id));
+}
+function alertsForHit(hit) {
+  return store.alerts.filter(a => String(a.hit_id) === String(hit.id) || String(a.matched_value || '').toLowerCase() === String(hit.matched_value || '').toLowerCase() || String(a.url || '') === String(hit.url || ''));
+}
+function targetForHit(hit) {
+  return store.targets.find(t => String(t.id) === String(hit.target_id));
+}
+function renderPreview(path) {
+  const src = normalizeEvidence(path);
+  if (!src) return '<div class="mini-desc">screenshot 없음</div>';
+  return `<a class="preview-box" href="${escapeHtml(src)}" target="_blank"><img src="${escapeHtml(src)}" alt="screenshot preview" loading="lazy" /></a>`;
+}
+function buildTimeline(hit) {
+  const page = pageForHit(hit);
+  const extracted = extractedForPage(hit).slice(0, 20).map(e => ({ kind: 'extracted', ts: e.first_seen_at, title: `${e.type} · ${e.normalized || e.raw || '-'}`, body: e.group_key || e.raw || '-' }));
+  const alerts = alertsForHit(hit).map(a => ({ kind: 'alert', ts: a.sent_at || a.created_at, title: `${a.channel} · ${a.status}`, body: a.error_message || a.url || '-' }));
+  const pageRows = page ? [{ kind: 'page', ts: page.fetched_at, title: page.title || page.url || '-', body: `${page.status_code || '-'} · ${page.content_changed ? 'changed' : 'stable'}${page.error_message ? ' · error' : ''}` }] : [];
+  const peerHits = sameValueHits(hit).filter(x => String(x.id) !== String(hit.id)).slice(0, 8).map(x => ({ kind: 'peer-hit', ts: x.last_seen_at || x.first_seen_at, title: `${x.watch_type || '-'} · ${x.matched_value || '-'}`, body: x.url || '-' }));
+  const hitRows = [{ kind: 'hit', ts: hit.last_seen_at || hit.first_seen_at, title: `${hit.watch_type || '-'} · ${hit.matched_value || '-'}`, body: hit.url || '-' }];
+  return [...hitRows, ...pageRows, ...alerts, ...peerHits, ...extracted].sort((a,b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+}
+function relatedList(items, mapFn, emptyText) {
+  if (!items.length) return `<div class="mini-desc">${escapeHtml(emptyText)}</div>`;
+  return `<div class="related-list">${items.slice(0, 8).map(mapFn).join('')}</div>`;
+}
+function bindRelatedClicks() {
+  document.querySelectorAll('[data-hit-id]').forEach(el => {
+    el.addEventListener('click', () => selectHit(el.dataset.hitId));
+  });
+}
+function renderSelected() {
+  const hit = store.selected;
+  const box = document.getElementById('selectedBanner');
+  if (!hit) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = renderSelectedBanner(hit, `
+    <a class="mini-btn" href="/ui/hits.html">Back to Hits</a>
+    ${hit.url ? `<a class="mini-btn" href="${escapeHtml(hit.url)}" target="_blank">Open URL</a>` : ''}
+  `);
+}
+function renderSummary() {
+  const hit = store.selected;
+  if (!hit) {
+    document.getElementById('summaryBox').innerHTML = 'hit를 선택하면 조사 피드가 채워진다.';
+    document.getElementById('detailBox').innerHTML = 'hit를 선택하면 조사 패널이 채워진다.';
+    document.getElementById('feedPill').textContent = '0 items';
+    renderSelected();
+    return;
+  }
+  renderSelected();
+  saveSelectedHit(hit);
+  const page = pageForHit(hit);
+  const sameValue = sameValueHits(hit);
+  const sameUrl = sameUrlHits(hit);
+  const sameTarget = sameTargetHits(hit);
+  const alerts = alertsForHit(hit);
+  const extracted = extractedForPage(hit);
+  const target = targetForHit(hit);
+  const flags = buildHitFlags(hit, store.hits, store.alerts);
+  const timeline = buildTimeline(hit);
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  const filteredTimeline = timeline.filter(item => !q || [item.kind, item.title, item.body].join(' ').toLowerCase().includes(q));
+  document.getElementById('feedPill').textContent = `${filteredTimeline.length} items`;
+
+  document.getElementById('summaryBox').innerHTML = `
+    <div class="section-card">
+      <div class="detail-title-wrap">
+        <div>
+          <div class="detail-title">${escapeHtml(hit.matched_value || '-')}</div>
+          <div class="section-note">${escapeHtml(hit.watch_type || '-')} · ${escapeHtml(hit.label || '-')} · ${escapeHtml(target?.label || target?.name || hit.target_id || '-')}</div>
+          ${renderFlagBadges(flags)}
+        </div>
+        <div class="anchor-group">
+          <button class="mini-btn" type="button" id="sameIocBtn">Same IOC</button>
+          <button class="mini-btn" type="button" id="sameUrlBtn">Same URL</button>
+          <button class="mini-btn" type="button" id="sameTargetBtn">Same Target</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="kv-grid">
+      <div class="kv"><div class="mini-kicker">Same IOC</div><div class="num">${sameValue.length}</div></div>
+      <div class="kv"><div class="mini-kicker">Same URL</div><div class="num">${sameUrl.length}</div></div>
+      <div class="kv"><div class="mini-kicker">Same Target</div><div class="num">${sameTarget.length}</div></div>
+      <div class="kv"><div class="mini-kicker">Alerts</div><div class="num">${alerts.length}</div></div>
+    </div>
+
+    <div class="section-card" id="timelineSection">
+      <div class="section-title">Timeline</div>
+      <div class="timeline">${filteredTimeline.map(item => `
+        <div class="timeline-item">
+          <div class="timeline-top">
+            <div>
+              <div class="mini-kicker">${escapeHtml(item.kind)}</div>
+              <div>${escapeHtml(item.title)}</div>
+            </div>
+            <span class="pill">${escapeHtml(fmtDate(item.ts))}</span>
+          </div>
+          <div class="mini-desc">${escapeHtml(item.body)}</div>
+        </div>`).join('')}</div>
+    </div>`;
+
+  document.getElementById('detailBox').innerHTML = `
+    <div class="detail-stack">
+      <div class="section-card evidence-preview">
+        <div class="section-title">Evidence Preview</div>
+        ${renderPreview(page ? page.screenshot_path : hit.screenshot_path)}
+        <div class="tag-row">${page ? evidenceLinks(page) : evidenceLinks(hit)}</div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-title">Hit Context</div>
+        <div class="info-grid">
+          <div class="info-item"><div class="info-label">Hit ID</div><div class="info-value mono">${escapeHtml(hit.id)}</div></div>
+          <div class="info-item"><div class="info-label">Type</div><div class="info-value">${escapeHtml(hit.watch_type || '-')}</div></div>
+          <div class="info-item"><div class="info-label">Label</div><div class="info-value">${escapeHtml(hit.label || '-')}</div></div>
+          <div class="info-item"><div class="info-label">URL</div><div class="info-value truncate-2">${escapeHtml(hit.url || '-')}</div></div>
+          <div class="info-item"><div class="info-label">Target</div><div class="info-value">${escapeHtml(target?.label || target?.name || hit.target_id || '-')}</div></div>
+          <div class="info-item"><div class="info-label">Last Alerted</div><div class="info-value">${escapeHtml(fmtDate(hit.last_alerted_at))}</div></div>
+        </div>
+      </div>
+
+      <div class="section-card" id="sameIocSection">
+        <div class="section-title">Same IOC Hits</div>
+        ${relatedList(sameValue.filter(x => String(x.id) !== String(hit.id)), item => `
+          <div class="related-item clickable" data-hit-id="${escapeHtml(item.id)}">
+            <div class="related-head">
+              <div class="related-main">#${escapeHtml(item.id)} · ${escapeHtml(item.watch_type || '-')}</div>
+              <span class="pill">${escapeHtml(fmtAgo(item.last_seen_at || item.first_seen_at))}</span>
+            </div>
+            <div class="related-sub">${escapeHtml(item.url || '-')}</div>
+          </div>`, '같은 IOC로 잡힌 다른 hit 없음')}
+      </div>
+
+      <div class="section-card" id="sameTargetSection">
+        <div class="section-title">Same Target Hits</div>
+        ${relatedList(sameTarget.filter(x => String(x.id) !== String(hit.id)), item => `
+          <div class="related-item clickable" data-hit-id="${escapeHtml(item.id)}">
+            <div class="related-head">
+              <div class="related-main">#${escapeHtml(item.id)} · ${escapeHtml(item.watch_type || '-')}</div>
+              <span class="pill">${escapeHtml(fmtAgo(item.last_seen_at || item.first_seen_at))}</span>
+            </div>
+            <div class="related-sub">${escapeHtml(item.matched_value || '-')}</div>
+          </div>`, '같은 target의 다른 hit 없음')}
+      </div>
+
+      <div class="section-card">
+        <div class="section-title">Related Alerts</div>
+        ${relatedList(alerts, item => `
+          <div class="related-item">
+            <div class="related-head">
+              <div class="related-main">${escapeHtml(item.channel || '-')} · <span class="badge ${pickStatusClass(item.status)}">${escapeHtml(item.status || '-')}</span></div>
+              <span class="pill">${escapeHtml(fmtDate(item.created_at || item.sent_at))}</span>
+            </div>
+            <div class="related-sub">${escapeHtml(item.error_message || item.url || item.matched_value || '-')}</div>
+          </div>`, '관련 alert 없음')}
+      </div>
+
+      <div class="section-card">
+        <div class="section-title">Same Page Extracted</div>
+        ${relatedList(extracted, item => `
+          <div class="related-item">
+            <div class="related-head">
+              <div class="related-main">${escapeHtml(item.type || '-')}</div>
+              <span class="pill">#${escapeHtml(item.id)}</span>
+            </div>
+            <div class="related-sub">${escapeHtml(item.normalized || item.raw || '-')}</div>
+          </div>`, '같은 page에서 추출된 항목 없음')}
+      </div>
+    </div>`;
+
+  document.getElementById('sameIocBtn')?.addEventListener('click', () => document.getElementById('sameIocSection')?.scrollIntoView({behavior:'smooth', block:'start'}));
+  document.getElementById('sameUrlBtn')?.addEventListener('click', () => document.getElementById('timelineSection')?.scrollIntoView({behavior:'smooth', block:'start'}));
+  document.getElementById('sameTargetBtn')?.addEventListener('click', () => document.getElementById('sameTargetSection')?.scrollIntoView({behavior:'smooth', block:'start'}));
+  bindRelatedClicks();
+}
+
+function selectHit(hitId) {
+  const hit = store.hits.find(h => String(h.id) === String(hitId));
+  if (!hit) return;
+  store.selected = hit;
+  saveSelectedHit(hit);
+  document.getElementById('hitPicker').value = String(hit.id);
+  renderSummary();
+}
+
+async function loadInvestigation() {
+  const [hits, alerts, pages, extracted, targets] = await Promise.all([
+    getJson(API.hits(1, 120)), getJson(API.alerts(1, 140)), getJson(API.pages(160)), getJson(API.extracted(220)), getJson(API.targets)
+  ]);
+  store.hits = hits; store.alerts = alerts; store.pages = pages; store.extracted = extracted; store.targets = targets;
+  const picker = document.getElementById('hitPicker');
+  picker.innerHTML = '<option value="">선택</option>' + hits.map(h => `<option value="${escapeHtml(h.id)}">#${escapeHtml(h.id)} · ${escapeHtml(h.watch_type || '-')} · ${escapeHtml(h.matched_value || '-')}</option>`).join('');
+  const preset = qsParam('hit') || loadSelectedHitId();
+  if (preset) selectHit(preset);
+  else if (hits[0]) selectHit(hits[0].id);
+  else renderSummary();
+}
+
+document.getElementById('hitPicker').addEventListener('change', e => selectHit(e.target.value));
+document.getElementById('searchBox').addEventListener('input', renderSummary);
+attachRefresh(() => guardedLoad(loadInvestigation));
+guardedLoad(loadInvestigation);
+</script>
+</body>
+</html>

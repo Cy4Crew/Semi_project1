@@ -1,1149 +1,222 @@
 <!doctype html>
 <html lang="ko">
-
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Darkweb Monitor</title>
-  <style>
-    :root {
-      --bg: #07111f;
-      --bg2: #0b1730;
-      --line: rgba(255, 255, 255, .08);
-      --line2: rgba(255, 255, 255, .12);
-      --text: #edf2ff;
-      --muted: #93a3c7;
-      --blue: #56a3ff;
-      --indigo: #737bff;
-      --green: #27d38a;
-      --red: #ff6d7a;
-      --amber: #ffbe5c;
-      --shadow: 0 24px 60px rgba(0, 0, 0, .34);
-    }
-
-    * {
-      box-sizing: border-box
-    }
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      color: var(--text);
-      font-family: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(86, 163, 255, .20), transparent 22%),
-        radial-gradient(circle at top right, rgba(115, 123, 255, .16), transparent 20%),
-        linear-gradient(180deg, var(--bg), var(--bg2));
-    }
-
-    .bg-grid {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image: linear-gradient(rgba(255, 255, 255, .022) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .022) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: linear-gradient(180deg, rgba(0, 0, 0, .65), transparent 95%)
-    }
-
-    .shell {
-      position: relative;
-      max-width: 1680px;
-      margin: 0 auto;
-      padding: 22px;
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      gap: 22px
-    }
-
-    .sidebar,
-    .hero,
-    .panel,
-    .metric,
-    .filter-card {
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px)
-    }
-
-    .sidebar {
-      position: sticky;
-      top: 22px;
-      align-self: start;
-      padding: 20px;
-      border-radius: 28px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(9, 18, 34, .88), rgba(12, 22, 40, .74));
-      box-shadow: var(--shadow)
-    }
-
-    .brand {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      margin-bottom: 22px
-    }
-
-    .brand-mark {
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(135deg, var(--blue), var(--indigo));
-      color: white;
-      font-weight: 900;
-      font-size: 22px;
-      box-shadow: 0 14px 30px rgba(86, 163, 255, .28)
-    }
-
-    .brand-title {
-      font-size: 19px;
-      font-weight: 900
-    }
-
-    .brand-sub {
-      font-size: 12px;
-      color: var(--muted)
-    }
-
-    .nav {
-      display: grid;
-      gap: 10px;
-      margin-bottom: 16px
-    }
-
-    .nav-btn,
-    .btn,
-    .control {
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, .04);
-      color: var(--text);
-      border-radius: 16px;
-      font: inherit
-    }
-
-    .nav-btn,
-    .btn {
-      padding: 12px 14px;
-      font-weight: 800;
-      cursor: pointer
-    }
-
-    .nav-btn:hover,
-    .btn:hover {
-      background: rgba(255, 255, 255, .08)
-    }
-
-    .btn.primary {
-      border: none;
-      background: linear-gradient(135deg, var(--blue), var(--indigo));
-      box-shadow: 0 18px 34px rgba(86, 163, 255, .22)
-    }
-
-    .status-card,
-    .filter-card {
-      margin-top: 14px;
-      padding: 16px;
-      border-radius: 22px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, .03)
-    }
-
-    .card-title {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: #d9e5ff;
-      font-weight: 900;
-      margin-bottom: 12px
-    }
-
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 13px;
-      margin: 8px 0
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px
-    }
-
-    .dot.ok {
-      background: var(--green)
-    }
-
-    .dot.purple {
-      background: var(--indigo)
-    }
-
-    .field-label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin: 10px 0 6px
-    }
-
-    .control {
-      width: 100%;
-      padding: 12px 12px;
-      outline: none
-    }
-
-    .control:focus {
-      border-color: rgba(86, 163, 255, .45);
-      box-shadow: 0 0 0 4px rgba(86, 163, 255, .12)
-    }
-
-    .main {
-      display: grid;
-      gap: 18px
-    }
-
-    .hero {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 18px;
-      padding: 28px;
-      border-radius: 30px;
-      border: 1px solid var(--line);
-      background: linear-gradient(135deg, rgba(8, 17, 32, .88), rgba(15, 28, 54, .76));
-      box-shadow: var(--shadow)
-    }
-
-    .eyebrow {
-      font-size: 12px;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: #a7b7da;
-      font-weight: 900;
-      margin-bottom: 10px
-    }
-
-    .hero h1 {
-      margin: 0;
-      font-size: 42px;
-      line-height: 1.04;
-      letter-spacing: -.03em
-    }
-
-    .hero p {
-      margin: 10px 0 0;
-      color: var(--muted);
-      font-size: 15px
-    }
-
-    .actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 16px
-    }
-
-    .metric {
-      position: relative;
-      overflow: hidden;
-      padding: 18px;
-      border-radius: 24px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(19, 32, 57, .88), rgba(10, 18, 34, .78));
-      box-shadow: var(--shadow)
-    }
-
-    .metric::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255, 255, 255, .08), transparent 40%);
-      pointer-events: none
-    }
-
-    .metric-label {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: #a3b1d2;
-      font-weight: 900
-    }
-
-    .metric-value {
-      margin-top: 12px;
-      font-size: 48px;
-      font-weight: 900;
-      line-height: 1;
-      letter-spacing: -.04em
-    }
-
-    .metric-foot {
-      margin-top: 8px;
-      font-size: 13px;
-      color: var(--muted)
-    }
-
-    .content-grid {
-      display: grid;
-      grid-template-columns: 1.35fr .8fr;
-      gap: 18px
-    }
-
-    .panel {
-      padding: 18px;
-      border-radius: 28px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(12, 22, 40, .86), rgba(8, 16, 31, .80));
-      box-shadow: var(--shadow)
-    }
-
-    .panel-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px
-    }
-
-    .panel-title {
-      font-size: 22px;
-      font-weight: 900;
-      letter-spacing: -.02em
-    }
-
-    .panel-sub {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 4px
-    }
-
-    .charts {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px
-    }
-
-    .chart-card {
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, .03);
-      border-radius: 22px;
-      padding: 16px
-    }
-
-    .chart-title {
-      font-size: 14px;
-      font-weight: 800;
-      margin-bottom: 10px;
-      color: #dce6ff
-    }
-
-    .chart-box {
-      height: 280px;
-      max-height: 280px;
-      min-height: 280px;
-      position: relative;
-      overflow: hidden
-    }
-
-    canvas {
-      display: block;
-      width: 100% !important;
-      height: 280px !important;
-      max-height: 280px !important
-    }
-
-    .pulse-list {
-      display: grid;
-      gap: 12px
-    }
-
-    .pulse {
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, .035);
-      border-radius: 18px;
-      padding: 14px
-    }
-
-    .pulse-kicker {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: #a7b7da;
-      font-weight: 900
-    }
-
-    .pulse-value {
-      font-size: 24px;
-      font-weight: 900;
-      margin: 8px 0 6px
-    }
-
-    .pulse-desc {
-      font-size: 13px;
-      color: var(--muted)
-    }
-
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 14px
-    }
-
-    .toolbar .control {
-      width: auto;
-      min-width: 160px
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, .05);
-      border: 1px solid var(--line);
-      color: #cbd8f3;
-      font-size: 12px;
-      font-weight: 800
-    }
-
-    .table-wrap {
-      overflow: auto;
-      border-radius: 20px
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 980px
-    }
-
-    thead th {
-      text-align: left;
-      padding: 14px 16px;
-      font-size: 12px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: #9ec7ff;
-      background: rgba(255, 255, 255, .035);
-      border-bottom: 1px solid var(--line2)
-    }
-
-    tbody td {
-      padding: 15px 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, .06);
-      vertical-align: top;
-      color: #eaf1ff;
-      font-size: 14px;
-      word-break: break-word
-    }
-
-    tbody tr:hover {
-      background: rgba(255, 255, 255, .03)
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 11px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 900;
-      border: 1px solid transparent
-    }
-
-    .badge.type {
-      background: rgba(39, 211, 138, .14);
-      color: #8ef0c1;
-      border-color: rgba(39, 211, 138, .28)
-    }
-
-    .badge.ok {
-      background: rgba(39, 211, 138, .14);
-      color: #8ef0c1;
-      border-color: rgba(39, 211, 138, .28)
-    }
-
-    .badge.fail {
-      background: rgba(255, 109, 122, .14);
-      color: #ffb0b8;
-      border-color: rgba(255, 109, 122, .28)
-    }
-
-    .badge.other {
-      background: rgba(255, 190, 92, .14);
-      color: #ffd595;
-      border-color: rgba(255, 190, 92, .28)
-    }
-
-    .link {
-      color: #9ec7ff;
-      text-decoration: none
-    }
-
-    .link:hover {
-      text-decoration: underline
-    }
-
-    .muted {
-      color: var(--muted)
-    }
-
-    .hidden {
-      display: none !important
-    }
-
-    .empty {
-      padding: 34px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 14px;
-      border: 1px dashed var(--line2);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, .025);
-      margin-top: 12px
-    }
-
-    .pagination {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 14px
-    }
-
-    .pagination .control {
-      width: auto;
-      padding: 10px 18px;
-      cursor: pointer
-    }
-
-    .pagination .control:disabled {
-      opacity: .35;
-      cursor: not-allowed
-    }
-
-    @media (max-width:1320px) {
-      .shell {
-        grid-template-columns: 1fr
-      }
-
-      .sidebar {
-        position: relative;
-        top: 0
-      }
-    }
-
-    @media (max-width:1100px) {
-      .metrics {
-        grid-template-columns: repeat(2, 1fr)
-      }
-
-      .content-grid,
-      .charts {
-        grid-template-columns: 1fr
-      }
-    }
-
-    @media (max-width:700px) {
-      .hero {
-        padding: 22px;
-        flex-direction: column
-      }
-
-      .hero h1 {
-        font-size: 32px
-      }
-
-      .metrics {
-        grid-template-columns: 1fr
-      }
-
-      .toolbar .control {
-        width: 100%
-      }
-    }
-  </style>
+  <title>Darkweb Monitor · Overview</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
 </head>
-
 <body>
-  <div class="bg-grid"></div>
-  <div class="shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">D</div>
-        <div>
-          <div class="brand-title">Darkweb Monitor</div>
-          <div class="brand-sub">Intel Operations Console</div>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'overview',
+  heroEyebrow: 'Enterprise Dashboard',
+  heroTitle: 'Operations Overview',
+  heroDesc: '기존 메인 대시보드를 유지하면서, 읽기 전용 분석 페이지를 분리한 전체 콘솔이다. 여기서는 전체 규모와 최신 이상 징후를 빠르게 확인한다.',
+  heroMeta: ['기본 골조 유지', '멀티 페이지 분리', '그래프/분석 추가', 'theme toggle'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Quick Notes</div>
+    <div class="list-tight">
+      <div class="mini-desc">Overview는 전체 상황 확인용이다.</div>
+      <div class="mini-desc">세부 판정은 Investigation에서 한다.</div>
+      <div class="mini-desc">알림 신뢰성은 Alerts에서 본다.</div>
+    </div>`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="metrics" id="summaryGrid"></section>
+
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Activity Snapshot</div>
+            <div class="panel-sub">전체 규모와 최근 히트 타입 분포</div>
+          </div>
         </div>
-      </div>
-
-      <div class="nav">
-        <button class="nav-btn" id="refreshBtn">Refresh Now</button>
-        <button class="nav-btn" id="autoBtn">Auto Refresh: ON</button>
-      </div>
-
-      <div class="status-card">
-        <div class="card-title">시스템 상태</div>
-        <div class="status-row"><span class="dot ok"></span><span>API Connected</span></div>
-        <div class="status-row"><span class="dot purple"></span><span id="updatedAt">Last update: -</span></div>
-      </div>
-
-      <div class="filter-card">
-        <div class="card-title">빠른 필터</div>
-        <label class="field-label" for="hitTypeFilter">Hit Type</label>
-        <select id="hitTypeFilter" class="control">
-          <option value="">전체</option>
-        </select>
-
-        <label class="field-label" for="alertStatusFilter">Alert Status</label>
-        <select id="alertStatusFilter" class="control">
-          <option value="">전체</option>
-        </select>
-
-        <label class="field-label" for="searchBox">검색</label>
-        <input id="searchBox" class="control" type="text" placeholder="URL / matched value 검색" />
-      </div>
-    </aside>
-
-    <main class="main">
-      <section class="hero">
-        <div>
-          <div class="eyebrow">Enterprise Dashboard</div>
-          <h1>Operations Overview</h1>
-          <p>실시간 수집 현황, 최근 탐지, 최근 알림을 한 화면에서 확인한다.</p>
-        </div>
-        <div class="actions">
-          <button class="btn primary" id="heroRefreshBtn">Refresh</button>
+        <div class="charts">
+          <div class="chart-card">
+            <div class="chart-title">Summary Bars</div>
+            <div class="chart-box"><canvas id="summaryChart" width="520" height="280"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Recent Hit Types</div>
+            <div class="chart-box"><canvas id="hitTypeChart" width="520" height="280"></canvas></div>
+          </div>
         </div>
       </section>
 
-      <section class="metrics" id="summaryGrid"></section>
-
-      <section class="content-grid">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">Activity Snapshot</div>
-              <div class="panel-sub">차트 영역 크기 고정</div>
-            </div>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Live Pulse</div>
+            <div class="panel-sub">바로 확인할 만한 운영 요약</div>
           </div>
-          <div class="charts">
-            <div class="chart-card">
-              <div class="chart-title">Summary Bars</div>
-              <div class="chart-box">
-                <canvas id="summaryChart" width="520" height="280"></canvas>
-              </div>
-            </div>
-            <div class="chart-card">
-              <div class="chart-title">Recent Hit Types</div>
-              <div class="chart-box">
-                <canvas id="hitTypeChart" width="520" height="280"></canvas>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">Live Pulse</div>
-              <div class="panel-sub">최근 상태 요약</div>
-            </div>
-          </div>
-          <div class="pulse-list" id="pulseList"></div>
-        </section>
+        </div>
+        <div class="pulse-list" id="pulseList"></div>
       </section>
+    </section>
 
-      <!-- Recent Hits -->
+    <section class="grid-2">
       <section class="panel">
         <div class="panel-head">
           <div>
             <div class="panel-title">Recent Hits</div>
-            <div class="panel-sub">페이지당 20건</div>
+            <div class="panel-sub">최신 탐지 8건 요약</div>
           </div>
-          <span class="pill" id="hitCountPill">0 rows</span>
-        </div>
-        <div class="toolbar">
-          <input id="hitsSearchInline" class="control" type="text" placeholder="Hits 검색" />
+          <a class="pill link" href="/ui/hits.html">Open full page</a>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>Matched Value</th>
-                <th>URL</th>
-                <th>Screenshot</th>
-              </tr>
+              <tr><th>ID</th><th>Type</th><th>Matched</th><th>URL</th><th>Seen</th></tr>
             </thead>
             <tbody id="hitsBody"></tbody>
           </table>
           <div class="empty hidden" id="hitsEmpty">표시할 히트가 없다.</div>
         </div>
-        <div class="pagination">
-          <button class="control" id="hitPrevBtn" type="button">Prev</button>
-          <span class="pill" id="hitPagePill">Page 1</span>
-          <button class="control" id="hitNextBtn" type="button">Next</button>
-        </div>
       </section>
 
-      <!-- Recent Alerts -->
       <section class="panel">
         <div class="panel-head">
           <div>
             <div class="panel-title">Recent Alerts</div>
-            <div class="panel-sub">페이지당 20건</div>
+            <div class="panel-sub">채널 전송 상태 8건 요약</div>
           </div>
-          <span class="pill" id="alertCountPill">0 rows</span>
+          <a class="pill link" href="/ui/alerts.html">Open full page</a>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Channel</th>
-                <th>Status</th>
-                <th>Matched Value</th>
-                <th>URL</th>
-              </tr>
+              <tr><th>ID</th><th>Channel</th><th>Status</th><th>Matched</th><th>Created</th></tr>
             </thead>
             <tbody id="alertsBody"></tbody>
           </table>
           <div class="empty hidden" id="alertsEmpty">표시할 알림이 없다.</div>
         </div>
-        <div class="pagination">
-          <button class="control" id="alertPrevBtn" type="button">Prev</button>
-          <span class="pill" id="alertPagePill">Page 1</span>
-          <button class="control" id="alertNextBtn" type="button">Next</button>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Recent Change Timeline</div>
+          <div class="panel-sub">변화가 있거나 에러가 있었던 최신 페이지</div>
+        </div>
+        <a class="pill link" href="/ui/pages.html">Open pages</a>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <div class="empty hidden" id="timelineEmpty">표시할 페이지 이벤트가 없다.</div>
+        </section>
+
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Next Views</div>
+            <div class="panel-sub">이번에 추가된 관계 그래프와 분석 화면</div>
+          </div>
+        </div>
+        <div class="kv-grid">
+          <div class="kv"><div class="mini-kicker">Graph</div><div class="num">IOC</div><div class="mini-desc">같은 URL·같은 target 관계를 그래프로 본다.</div><div class="detail-cta"><a class="btn primary" href="/ui/graph.html">Open Graph</a></div></div>
+          <div class="kv"><div class="mini-kicker">Analytics</div><div class="num">Stats</div><div class="mini-desc">반복 IOC와 target load를 차트로 본다.</div><div class="detail-cta"><a class="btn primary" href="/ui/analytics.html">Open Analytics</a></div></div>
         </div>
       </section>
-    </main>
-  </div>
-
-  <script>
-    const PAGE_SIZE = 20;
-
-    const API = {
-      summary: "/api/summary",
-      hits: (page) => `/api/hits/recent?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`,
-      alerts: (page) => `/api/alerts/recent?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`
-    };
-
-    const state = {
-      summary: {},
-      hits: [],
-      alerts: [],
-      auto: true,
-      timer: null,
-      hitPage: 1,
-      alertPage: 1
-    };
-
-    const $ = (s) => document.querySelector(s);
-
-    function escapeHtml(v) {
-      return String(v ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    async function getJson(url) {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) throw new Error(url + " -> HTTP " + r.status);
-      return await r.json();
-    }
-
-    function nowStr() {
-      return new Date().toLocaleString("ko-KR");
-    }
-
-    function normalizeScreenshot(path) {
-      if (!path) return "";
-      if (/^https?:\/\//i.test(path)) return path;
-      return "/" + String(path).replace(/^\/+/, "").replace(/^\.\/+/, "").replace(/^app\//, "");
-    }
-
-    function pickStatusClass(status) {
-      const s = String(status ?? "").toLowerCase();
-      if (s.includes("sent") || s.includes("success") || s === "ok") return "ok";
-      if (s.includes("fail") || s.includes("error")) return "fail";
-      return "other";
-    }
-
-    function countBy(items, key) {
-      return items.reduce((a, it) => {
-        const k = String(it?.[key] ?? "unknown").trim() || "unknown";
-        a[k] = (a[k] || 0) + 1;
-        return a;
-      }, {});
-    }
-
-    function topKey(obj) {
-      const e = Object.entries(obj);
-      if (!e.length) return "-";
-      e.sort((a, b) => b[1] - a[1]);
-      return e[0][0];
-    }
-
-    function uniqueValues(list, key) {
-      return [...new Set(list.map(x => String(x?.[key] ?? "").trim()).filter(Boolean))].sort();
-    }
-
-    function renderSummary() {
-      const items = [
-        { key: "targets", label: "Targets", foot: "활성 감시 대상" },
-        { key: "pages", label: "Pages", foot: "수집된 페이지" },
-        { key: "extracted", label: "Extracted", foot: "추출된 항목" },
-        { key: "hits", label: "Hits", foot: "탐지 이벤트" },
-        { key: "alerts", label: "Alerts", foot: "전송 알림" }
-      ];
-
-      $("#summaryGrid").innerHTML = items.map(it => `
-        <article class="metric">
-          <div class="metric-label">${it.label}</div>
-          <div class="metric-value">${escapeHtml(state.summary[it.key] ?? 0)}</div>
-          <div class="metric-foot">${it.foot}</div>
-        </article>
-      `).join("");
-    }
-
-    function renderPulse() {
-      const hitCounts = countBy(state.hits, "watch_type");
-      const alertCounts = countBy(state.alerts, "status");
-      const topHit = topKey(hitCounts);
-      const topAlert = topKey(alertCounts);
-
-      $("#pulseList").innerHTML = `
-        <div class="pulse">
-          <div class="pulse-kicker">Collection</div>
-          <div class="pulse-value">${escapeHtml(state.summary.pages ?? 0)}</div>
-          <div class="pulse-desc">현재까지 저장된 전체 페이지 수</div>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Operator Notes</div>
+            <div class="panel-sub">이번 버전에서 바뀐 점</div>
+          </div>
         </div>
-        <div class="pulse">
-          <div class="pulse-kicker">Top Hit Type</div>
-          <div class="pulse-value">${escapeHtml(topHit)}${topHit !== "-" ? " · " + hitCounts[topHit] + "건" : ""}</div>
-          <div class="pulse-desc">최근 히트 데이터 기준 최다 타입</div>
+        <div class="stack">
+          <div class="list-item"><div class="mini-kicker">Theme</div><div class="mini-desc">상단 토글로 Dark / Light 전환, localStorage 유지</div></div>
+          <div class="list-item"><div class="mini-kicker">Hits Flow</div><div class="mini-desc">행 클릭은 Investigation 이동, VIEW는 현재 페이지 요약</div></div>
+          <div class="list-item"><div class="mini-kicker">Priority</div><div class="mini-desc">NEW / REPEATED / MULTI / TARGET 배지로 우선순위 표시</div></div>
         </div>
-        <div class="pulse">
-          <div class="pulse-kicker">Alert Status</div>
-          <div class="pulse-value">${escapeHtml(topAlert)}${topAlert !== "-" ? " · " + alertCounts[topAlert] + "건" : ""}</div>
-          <div class="pulse-desc">최근 알림 데이터 기준 상태 분포</div>
+      </section>
+    </section>`
+});
+
+async function loadOverview() {
+  const [summary, hits, alerts, pages, targets, watchlist] = await Promise.all([
+    getJson(API.summary),
+    getJson(API.hits(1, 8)),
+    getJson(API.alerts(1, 8)),
+    getJson(API.pages(30)),
+    getJson(API.targets),
+    getJson(API.watchlist),
+  ]);
+
+  renderMetricCards(document.getElementById('summaryGrid'), [
+    { label: 'Targets', value: summary.targets ?? 0, foot: '활성 감시 대상 수' },
+    { label: 'Pages', value: summary.pages ?? 0, foot: '저장된 페이지 수' },
+    { label: 'Extracted', value: summary.extracted ?? 0, foot: '추출 항목 누적' },
+    { label: 'Hits', value: summary.hits ?? 0, foot: '워치리스트 탐지 누적' },
+    { label: 'Alerts', value: summary.alerts ?? 0, foot: 'stdout 제외 알림 수' },
+  ]);
+
+  const hitCounts = countBy(hits, 'watch_type');
+  drawBars('summaryChart', ['Targets','Pages','Extracted','Hits','Alerts'], [Number(summary.targets||0), Number(summary.pages||0), Number(summary.extracted||0), Number(summary.hits||0), Number(summary.alerts||0)], [
+    ['#5ad1ff', '#5679ff'], ['#6ae7ff', '#5679ff'], ['#56a3ff', '#7b6dff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b']
+  ]);
+  const labels = Object.keys(hitCounts).length ? Object.keys(hitCounts) : ['No data'];
+  const values = Object.values(hitCounts).length ? Object.values(hitCounts) : [0];
+  drawBars('hitTypeChart', labels, values, [
+    ['#5ad1ff', '#5679ff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b'], ['#9d8bff', '#5f6bff'], ['#71e5ff', '#3fb4ff']
+  ]);
+
+  const queued = targets.filter(t => t.is_queued).length;
+  const neverFetched = targets.filter(t => !t.last_fetched_at).length;
+  const regexCount = watchlist.filter(w => w.is_regex).length;
+  const failedAlerts = alerts.filter(a => pickStatusClass(a.status) === 'fail').length;
+  document.getElementById('pulseList').innerHTML = `
+    <div class="pulse"><div class="pulse-kicker">Queue</div><div class="pulse-value">${queued}</div><div class="pulse-desc">현재 queued 상태인 타겟 수</div></div>
+    <div class="pulse"><div class="pulse-kicker">Never Fetched</div><div class="pulse-value">${neverFetched}</div><div class="pulse-desc">아직 한 번도 수집되지 않은 타겟</div></div>
+    <div class="pulse"><div class="pulse-kicker">Regex Watchlist</div><div class="pulse-value">${regexCount}</div><div class="pulse-desc">정규식 기반 감시 규칙 수</div></div>
+    <div class="pulse"><div class="pulse-kicker">Alert Failures</div><div class="pulse-value">${failedAlerts}</div><div class="pulse-desc">최근 8건 기준 실패 알림 수</div></div>
+  `;
+
+  document.getElementById('hitsBody').innerHTML = hits.map(row => `
+    <tr>
+      <td>${escapeHtml(row.id)}</td>
+      <td><span class="badge type">${escapeHtml(row.watch_type || '-')}</span></td>
+      <td>${escapeHtml(row.matched_value || '-')}</td>
+      <td>${row.url ? `<a class="link" href="/ui/investigation.html?hit=${encodeURIComponent(row.id)}">${escapeHtml(row.url)}</a>` : '<span class="muted">-</span>'}</td>
+      <td>${escapeHtml(fmtDate(row.last_seen_at || row.first_seen_at))}</td>
+    </tr>`).join('');
+  document.getElementById('hitsEmpty').classList.toggle('hidden', hits.length !== 0);
+
+  document.getElementById('alertsBody').innerHTML = alerts.map(row => `
+    <tr>
+      <td>${escapeHtml(row.id)}</td>
+      <td>${escapeHtml(row.channel || '-')}</td>
+      <td><span class="badge ${pickStatusClass(row.status)}">${escapeHtml(row.status || '-')}</span></td>
+      <td>${escapeHtml(row.matched_value || '-')}</td>
+      <td>${escapeHtml(fmtDate(row.created_at))}</td>
+    </tr>`).join('');
+  document.getElementById('alertsEmpty').classList.toggle('hidden', alerts.length !== 0);
+
+  const timelineRows = pages.filter(p => p.content_changed || p.error_message || (p.status_code && Number(p.status_code) >= 400)).slice(0, 10);
+  document.getElementById('timeline').innerHTML = timelineRows.map(p => `
+    <div class="timeline-item ${p.content_changed ? 'highlight' : ''}">
+      <div class="timeline-top">
+        <div>
+          <div class="mini-kicker">${escapeHtml(p.target_name || p.host || 'unknown target')}</div>
+          <div><a class="link" href="/ui/pages.html#page-${escapeHtml(p.id)}">${escapeHtml(p.title || p.url || '-')}</a></div>
         </div>
-      `;
-    }
+        <span class="badge ${p.error_message || (p.status_code && Number(p.status_code) >= 400) ? 'fail' : 'info'}">${p.error_message ? 'error' : (p.content_changed ? 'changed' : 'recent')}</span>
+      </div>
+      <div class="mini-desc">Fetched ${escapeHtml(fmtDate(p.fetched_at))} · Status ${escapeHtml(p.status_code ?? '-')} · ${p.content_changed ? 'content changed' : 'no change flag'}</div>
+      <div class="evidence-links">${evidenceLinks(p)}</div>
+    </div>`).join('');
+  document.getElementById('timelineEmpty').classList.toggle('hidden', timelineRows.length !== 0);
+}
 
-    function roundRect(ctx, x, y, w, h, r) {
-      const rr = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + rr, y);
-      ctx.arcTo(x + w, y, x + w, y + h, rr);
-      ctx.arcTo(x + w, y + h, x, y + h, rr);
-      ctx.arcTo(x, y + h, x, y, rr);
-      ctx.arcTo(x, y, x + w, y, rr);
-      ctx.closePath();
-    }
-
-    function wrapCenterText(ctx, text, cx, y, maxW, lineH) {
-      const words = String(text).split(/\s+/);
-      let line = "";
-      const lines = [];
-      for (const word of words) {
-        const test = line ? line + " " + word : word;
-        if (ctx.measureText(test).width > maxW && line) {
-          lines.push(line);
-          line = word;
-        } else {
-          line = test;
-        }
-      }
-      if (line) lines.push(line);
-      const off = ((lines.length - 1) * lineH) / 2;
-      lines.slice(0, 2).forEach((ln, i) => ctx.fillText(ln, cx, y - off + i * lineH));
-    }
-
-    function drawBars(canvasId, labels, values, colors) {
-      const canvas = document.getElementById(canvasId);
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-
-      const cssWidth = canvas.parentElement.clientWidth || 520;
-      const cssHeight = 280;
-      const ratio = window.devicePixelRatio || 1;
-
-      canvas.style.width = cssWidth + "px";
-      canvas.style.height = cssHeight + "px";
-
-      canvas.width = Math.floor(cssWidth * ratio);
-      canvas.height = Math.floor(cssHeight * ratio);
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-      const width = cssWidth;
-      const height = cssHeight;
-
-      const pad = { top: 24, right: 18, bottom: 42, left: 18 };
-      const chartW = width - pad.left - pad.right;
-      const chartH = height - pad.top - pad.bottom;
-      const max = Math.max(...values, 1);
-
-      ctx.strokeStyle = "rgba(255,255,255,.08)";
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= 4; i++) {
-        const y = pad.top + (chartH / 4) * i;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(width - pad.right, y);
-        ctx.stroke();
-      }
-
-      const count = Math.max(labels.length, 1);
-      const gap = Math.max(12, Math.floor(chartW * 0.04));
-      const barW = Math.max(18, Math.floor((chartW - gap * (count - 1)) / count));
-
-      labels.forEach((label, i) => {
-        const x = pad.left + i * (barW + gap);
-        const barH = (values[i] / max) * (chartH - 14);
-        const y = pad.top + chartH - barH;
-        const pair = colors[i % colors.length];
-
-        const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-        grad.addColorStop(0, pair[0]);
-        grad.addColorStop(1, pair[1]);
-
-        roundRect(ctx, x, y, barW, barH, 14);
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        ctx.fillStyle = "#edf2ff";
-        ctx.font = "700 12px Inter, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(String(values[i]), x + barW / 2, Math.max(14, y - 8));
-
-        ctx.fillStyle = "#9db0d6";
-        ctx.font = "600 12px Inter, sans-serif";
-        wrapCenterText(ctx, label, x + barW / 2, height - 18, barW + 14, 12);
-      });
-    }
-
-    function renderCharts() {
-      drawBars(
-        "summaryChart",
-        ["Targets", "Pages", "Extracted", "Hits", "Alerts"],
-        [
-          Number(state.summary.targets || 0),
-          Number(state.summary.pages || 0),
-          Number(state.summary.extracted || 0),
-          Number(state.summary.hits || 0),
-          Number(state.summary.alerts || 0)
-        ],
-        [
-          ["#5ad1ff", "#5679ff"],
-          ["#6ae7ff", "#5679ff"],
-          ["#56a3ff", "#7b6dff"],
-          ["#5bf0bf", "#2fd187"],
-          ["#ffbe5c", "#ff8a5b"]
-        ]
-      );
-
-      const counts = countBy(state.hits, "watch_type");
-      const labels = Object.keys(counts).length ? Object.keys(counts) : ["No data"];
-      const values = Object.values(counts).length ? Object.values(counts) : [0];
-
-      drawBars(
-        "hitTypeChart",
-        labels,
-        values,
-        [
-          ["#5ad1ff", "#5679ff"],
-          ["#5bf0bf", "#2fd187"],
-          ["#ffbe5c", "#ff8a5b"],
-          ["#9d8bff", "#5f6bff"],
-          ["#71e5ff", "#3fb4ff"]
-        ]
-      );
-    }
-
-    function populateFilters() {
-      const hitTypes = uniqueValues(state.hits, "watch_type");
-      const statuses = uniqueValues(state.alerts, "status");
-      const hitSel = $("#hitTypeFilter");
-      const statusSel = $("#alertStatusFilter");
-      const currHit = hitSel.value;
-      const currStatus = statusSel.value;
-
-      hitSel.innerHTML = '<option value="">전체</option>' + hitTypes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-      statusSel.innerHTML = '<option value="">전체</option>' + statuses.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-
-      hitSel.value = hitTypes.includes(currHit) ? currHit : "";
-      statusSel.value = statuses.includes(currStatus) ? currStatus : "";
-    }
-
-    function filteredHits() {
-      const q = ($("#searchBox").value + " " + $("#hitsSearchInline").value).trim().toLowerCase();
-      const type = $("#hitTypeFilter").value.trim().toLowerCase();
-
-      return state.hits.filter(row => {
-        const typeOk = !type || String(row.watch_type || "").toLowerCase() === type;
-        const joined = [row.url, row.matched_value, row.watch_type].map(x => String(x || "").toLowerCase()).join(" ");
-        const queryOk = !q || joined.includes(q);
-        return typeOk && queryOk;
-      });
-    }
-
-    function filteredAlerts() {
-      const q = $("#searchBox").value.trim().toLowerCase();
-      const status = $("#alertStatusFilter").value.trim().toLowerCase();
-
-      return state.alerts.filter(row => {
-        const statusOk = !status || String(row.status || "").toLowerCase() === status;
-        const joined = [row.url, row.matched_value, row.channel, row.status].map(x => String(x || "").toLowerCase()).join(" ");
-        const queryOk = !q || joined.includes(q);
-        return statusOk && queryOk;
-      });
-    }
-
-    function renderHits() {
-      const rows = filteredHits();
-      $("#hitCountPill").textContent = rows.length + " rows";
-      $("#hitsBody").innerHTML = rows.map(row => {
-        const ss = normalizeScreenshot(row.screenshot_path);
-        return `
-          <tr>
-            <td>${escapeHtml(row.id)}</td>
-            <td><span class="badge type">${escapeHtml(row.watch_type || "-")}</span></td>
-            <td>${escapeHtml(row.matched_value || "-")}</td>
-            <td>${row.url ? `<a class="link" href="${escapeHtml(row.url)}" target="_blank">${escapeHtml(row.url)}</a>` : `<span class="muted">-</span>`}</td>
-            <td>${ss ? `<a class="link" href="${escapeHtml(ss)}" target="_blank">open</a>` : `<span class="muted">-</span>`}</td>
-          </tr>
-        `;
-      }).join("");
-      $("#hitsEmpty").classList.toggle("hidden", rows.length !== 0);
-      $("#hitPagePill").textContent = `Page ${state.hitPage}`;
-      $("#hitPrevBtn").disabled = state.hitPage <= 1;
-      $("#hitNextBtn").disabled = state.hits.length < PAGE_SIZE;
-    }
-
-    function renderAlerts() {
-      const rows = filteredAlerts();
-      $("#alertCountPill").textContent = rows.length + " rows";
-      $("#alertsBody").innerHTML = rows.map(row => `
-        <tr>
-          <td>${escapeHtml(row.id)}</td>
-          <td>${escapeHtml(row.channel || "-")}</td>
-          <td><span class="badge ${pickStatusClass(row.status)}">${escapeHtml(row.status || "-")}</span></td>
-          <td>${escapeHtml(row.matched_value || "-")}</td>
-          <td>${row.url ? `<a class="link" href="${escapeHtml(row.url)}" target="_blank">${escapeHtml(row.url)}</a>` : `<span class="muted">-</span>`}</td>
-        </tr>
-      `).join("");
-      $("#alertsEmpty").classList.toggle("hidden", rows.length !== 0);
-      $("#alertPagePill").textContent = `Page ${state.alertPage}`;
-      $("#alertPrevBtn").disabled = state.alertPage <= 1;
-      $("#alertNextBtn").disabled = state.alerts.length < PAGE_SIZE;
-    }
-
-    async function refresh() {
-      try {
-        const [summary, hits, alerts] = await Promise.all([
-          getJson(API.summary),
-          getJson(API.hits(state.hitPage)),
-          getJson(API.alerts(state.alertPage))
-        ]);
-
-        state.summary = summary || {};
-        state.hits = Array.isArray(hits) ? hits : [];
-        state.alerts = Array.isArray(alerts) ? alerts : [];
-
-        renderSummary();
-        populateFilters();
-        renderPulse();
-        renderHits();
-        renderAlerts();
-        renderCharts();
-
-        $("#updatedAt").textContent = "Last update: " + nowStr();
-      } catch (e) {
-        console.error(e);
-        $("#updatedAt").textContent = "Last update: failed";
-      }
-    }
-
-    function startAuto() {
-      stopAuto();
-      state.timer = setInterval(refresh, 10000);
-      state.auto = true;
-      $("#autoBtn").textContent = "Auto Refresh: ON";
-    }
-
-    function stopAuto() {
-      if (state.timer) clearInterval(state.timer);
-      state.timer = null;
-      state.auto = false;
-      $("#autoBtn").textContent = "Auto Refresh: OFF";
-    }
-
-    function toggleAuto() {
-      state.auto ? stopAuto() : startAuto();
-    }
-
-    $("#refreshBtn").addEventListener("click", refresh);
-    $("#heroRefreshBtn").addEventListener("click", refresh);
-    $("#autoBtn").addEventListener("click", toggleAuto);
-    $("#hitTypeFilter").addEventListener("change", renderHits);
-    $("#alertStatusFilter").addEventListener("change", renderAlerts);
-    $("#searchBox").addEventListener("input", () => { renderHits(); renderAlerts(); });
-    $("#hitsSearchInline").addEventListener("input", renderHits);
-    window.addEventListener("resize", renderCharts);
-
-    $("#hitPrevBtn").addEventListener("click", async () => {
-      if (state.hitPage > 1) {
-        state.hitPage -= 1;
-        await refresh();
-      }
-    });
-
-    $("#hitNextBtn").addEventListener("click", async () => {
-      if (state.hits.length === PAGE_SIZE) {
-        state.hitPage += 1;
-        await refresh();
-      }
-    });
-
-    $("#alertPrevBtn").addEventListener("click", async () => {
-      if (state.alertPage > 1) {
-        state.alertPage -= 1;
-        await refresh();
-      }
-    });
-
-    $("#alertNextBtn").addEventListener("click", async () => {
-      if (state.alerts.length === PAGE_SIZE) {
-        state.alertPage += 1;
-        await refresh();
-      }
-    });
-
-    refresh();
-    startAuto();
-  </script>
+attachRefresh(() => guardedLoad(loadOverview));
+window.addEventListener('resize', () => guardedLoad(loadOverview));
+guardedLoad(loadOverview);
+</script>
 </body>
-
 </html>
