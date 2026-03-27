@@ -187,7 +187,7 @@ def get_hit_detail(conn, hit_id: int):
     return _as_dict(row, columns)
 
 
-def list_recent_hits(conn, limit: int = 20) -> list[dict]:
+def list_recent_hits(conn, limit: int = 20, offset: int = 0) -> list[dict]:
     columns = [
         "id",
         "matched_value",
@@ -226,10 +226,10 @@ def list_recent_hits(conn, limit: int = 20) -> list[dict]:
             FROM watchlist_hits h
             LEFT JOIN pages p ON p.id = h.page_id
             LEFT JOIN watchlist w ON w.id = h.watchlist_id
-            ORDER BY h.last_seen_at DESC NULLS LAST, h.id DESC
-            LIMIT %s
+            ORDER BY h.id DESC
+            LIMIT %s OFFSET %s
             """,
-            (limit,),
+            (limit, offset),
         )
         rows = cur.fetchall()
 
