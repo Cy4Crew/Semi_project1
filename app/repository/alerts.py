@@ -3,19 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 
-def create_alert(conn, *, hit_id: int, channel: str, created_at: str) -> int:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO alerts(hit_id, channel, status, created_at)
-            VALUES(%s, %s, 'pending', %s::timestamptz)
-            RETURNING id
-            """,
-            (hit_id, channel, created_at),
-        )
-        return int(cur.fetchone()["id"])
-
-
 def create_alert_if_not_exists(
     conn,
     *,
@@ -27,9 +14,23 @@ def create_alert_if_not_exists(
     with conn.cursor() as cur:
         cur.execute(
             """
+            SELECT id
+            FROM alerts
+            WHERE alert_fingerprint = %s AND channel = %s
+            LIMIT 1
+            """,
+            (alert_fingerprint, channel),
+        )
+        row = cur.fetchone()
+        if row is not None:
+            if isinstance(row, dict):
+                return int(row["id"])
+            return int(row[0])
+
+        cur.execute(
+            """
             INSERT INTO alerts(hit_id, channel, status, created_at, alert_fingerprint)
             VALUES(%s, %s, 'pending', %s::timestamptz, %s)
-            ON CONFLICT (alert_fingerprint, channel) DO NOTHING
             RETURNING id
             """,
             (hit_id, channel, created_at, alert_fingerprint),
@@ -41,11 +42,10 @@ def create_alert_if_not_exists(
 
     if isinstance(row, dict):
         return int(row["id"])
-
     return int(row[0])
 
 
-def list_recent_alerts(conn, limit: int = 100):
+def list_recent_alerts(conn, limit: int = 100) -> list[dict[str, Any]]:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -66,7 +66,13 @@ def list_recent_alerts(conn, limit: int = 100):
 def get_pending_alerts(conn, limit: int = 20) -> list[dict[str, Any]]:
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, hit_id, channel FROM alerts WHERE status = 'pending' ORDER BY id ASC LIMIT %s",
+            """
+            SELECT id, hit_id, channel
+            FROM alerts
+            WHERE status = 'pending'
+            ORDER BY id ASC
+            LIMIT %s
+            """,
             (limit,),
         )
         return list(cur.fetchall())
