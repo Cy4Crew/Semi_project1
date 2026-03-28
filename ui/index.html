@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Overview</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'overview',
+  heroEyebrow: 'Enterprise Dashboard',
+  heroTitle: 'Operations Overview',
+  heroDesc: '기존 메인 대시보드를 유지하면서, 읽기 전용 분석 페이지를 분리한 전체 콘솔이다. 여기서는 전체 규모와 최신 이상 징후를 빠르게 확인한다.',
+  heroMeta: ['기본 골조 유지', '멀티 페이지 분리', '그래프/분석 추가', 'theme toggle'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Quick Notes</div>
+    <div class="list-tight">
+      <div class="mini-desc">Overview는 전체 상황 확인용이다.</div>
+      <div class="mini-desc">세부 판정은 Investigation에서 한다.</div>
+      <div class="mini-desc">알림 신뢰성은 Alerts에서 본다.</div>
+    </div>`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="metrics" id="summaryGrid"></section>
+
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Activity Snapshot</div>
+            <div class="panel-sub">전체 규모와 최근 히트 타입 분포</div>
+          </div>
+        </div>
+        <div class="charts">
+          <div class="chart-card">
+            <div class="chart-title">Summary Bars</div>
+            <div class="chart-box"><canvas id="summaryChart" width="520" height="280"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Recent Hit Types</div>
+            <div class="chart-box"><canvas id="hitTypeChart" width="520" height="280"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Live Pulse</div>
+            <div class="panel-sub">바로 확인할 만한 운영 요약</div>
+          </div>
+        </div>
+        <div class="pulse-list" id="pulseList"></div>
+      </section>
+    </section>
+
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Recent Hits</div>
+            <div class="panel-sub">최신 탐지 8건 요약</div>
+          </div>
+          <a class="pill link" href="/ui/hits.html">Open full page</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Type</th><th>Matched</th><th>URL</th><th>Seen</th></tr>
+            </thead>
+            <tbody id="hitsBody"></tbody>
+          </table>
+          <div class="empty hidden" id="hitsEmpty">표시할 히트가 없다.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Recent Alerts</div>
+            <div class="panel-sub">채널 전송 상태 8건 요약</div>
+          </div>
+          <a class="pill link" href="/ui/alerts.html">Open full page</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Channel</th><th>Status</th><th>Matched</th><th>Created</th></tr>
+            </thead>
+            <tbody id="alertsBody"></tbody>
+          </table>
+          <div class="empty hidden" id="alertsEmpty">표시할 알림이 없다.</div>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Recent Change Timeline</div>
+          <div class="panel-sub">변화가 있거나 에러가 있었던 최신 페이지</div>
+        </div>
+        <a class="pill link" href="/ui/pages.html">Open pages</a>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <div class="empty hidden" id="timelineEmpty">표시할 페이지 이벤트가 없다.</div>
+        </section>
+
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Next Views</div>
+            <div class="panel-sub">이번에 추가된 관계 그래프와 분석 화면</div>
+          </div>
+        </div>
+        <div class="kv-grid">
+          <div class="kv"><div class="mini-kicker">Graph</div><div class="num">IOC</div><div class="mini-desc">같은 URL·같은 target 관계를 그래프로 본다.</div><div class="detail-cta"><a class="btn primary" href="/ui/graph.html">Open Graph</a></div></div>
+          <div class="kv"><div class="mini-kicker">Analytics</div><div class="num">Stats</div><div class="mini-desc">반복 IOC와 target load를 차트로 본다.</div><div class="detail-cta"><a class="btn primary" href="/ui/analytics.html">Open Analytics</a></div></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Operator Notes</div>
+            <div class="panel-sub">이번 버전에서 바뀐 점</div>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="list-item"><div class="mini-kicker">Theme</div><div class="mini-desc">상단 토글로 Dark / Light 전환, localStorage 유지</div></div>
+          <div class="list-item"><div class="mini-kicker">Hits Flow</div><div class="mini-desc">행 클릭은 Investigation 이동, VIEW는 현재 페이지 요약</div></div>
+          <div class="list-item"><div class="mini-kicker">Priority</div><div class="mini-desc">NEW / REPEATED / MULTI / TARGET 배지로 우선순위 표시</div></div>
+        </div>
+      </section>
+    </section>`
+});
+
+async function loadOverview() {
+  const [summary, hits, alerts, pages, targets, watchlist] = await Promise.all([
+    getJson(API.summary),
+    getJson(API.hits(1, 8)),
+    getJson(API.alerts(1, 8)),
+    getJson(API.pages(30)),
+    getJson(API.targets),
+    getJson(API.watchlist),
+  ]);
+
+  renderMetricCards(document.getElementById('summaryGrid'), [
+    { label: 'Targets', value: summary.targets ?? 0, foot: '활성 감시 대상 수' },
+    { label: 'Pages', value: summary.pages ?? 0, foot: '저장된 페이지 수' },
+    { label: 'Extracted', value: summary.extracted ?? 0, foot: '추출 항목 누적' },
+    { label: 'Hits', value: summary.hits ?? 0, foot: '워치리스트 탐지 누적' },
+    { label: 'Alerts', value: summary.alerts ?? 0, foot: 'stdout 제외 알림 수' },
+  ]);
+
+  const hitCounts = countBy(hits, 'watch_type');
+  drawBars('summaryChart', ['Targets','Pages','Extracted','Hits','Alerts'], [Number(summary.targets||0), Number(summary.pages||0), Number(summary.extracted||0), Number(summary.hits||0), Number(summary.alerts||0)], [
+    ['#5ad1ff', '#5679ff'], ['#6ae7ff', '#5679ff'], ['#56a3ff', '#7b6dff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b']
+  ]);
+  const labels = Object.keys(hitCounts).length ? Object.keys(hitCounts) : ['No data'];
+  const values = Object.values(hitCounts).length ? Object.values(hitCounts) : [0];
+  drawBars('hitTypeChart', labels, values, [
+    ['#5ad1ff', '#5679ff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b'], ['#9d8bff', '#5f6bff'], ['#71e5ff', '#3fb4ff']
+  ]);
+
+  const queued = targets.filter(t => t.is_queued).length;
+  const neverFetched = targets.filter(t => !t.last_fetched_at).length;
+  const regexCount = watchlist.filter(w => w.is_regex).length;
+  const failedAlerts = alerts.filter(a => pickStatusClass(a.status) === 'fail').length;
+  document.getElementById('pulseList').innerHTML = `
+    <div class="pulse"><div class="pulse-kicker">Queue</div><div class="pulse-value">${queued}</div><div class="pulse-desc">현재 queued 상태인 타겟 수</div></div>
+    <div class="pulse"><div class="pulse-kicker">Never Fetched</div><div class="pulse-value">${neverFetched}</div><div class="pulse-desc">아직 한 번도 수집되지 않은 타겟</div></div>
+    <div class="pulse"><div class="pulse-kicker">Regex Watchlist</div><div class="pulse-value">${regexCount}</div><div class="pulse-desc">정규식 기반 감시 규칙 수</div></div>
+    <div class="pulse"><div class="pulse-kicker">Alert Failures</div><div class="pulse-value">${failedAlerts}</div><div class="pulse-desc">최근 8건 기준 실패 알림 수</div></div>
+  `;
+
+  document.getElementById('hitsBody').innerHTML = hits.map(row => `
+    <tr>
+      <td>${escapeHtml(row.id)}</td>
+      <td><span class="badge type">${escapeHtml(row.watch_type || '-')}</span></td>
+      <td>${escapeHtml(row.matched_value || '-')}</td>
+      <td>${row.url ? `<a class="link" href="/ui/investigation.html?hit=${encodeURIComponent(row.id)}">${escapeHtml(row.url)}</a>` : '<span class="muted">-</span>'}</td>
+      <td>${escapeHtml(fmtDate(row.last_seen_at || row.first_seen_at))}</td>
+    </tr>`).join('');
+  document.getElementById('hitsEmpty').classList.toggle('hidden', hits.length !== 0);
+
+  document.getElementById('alertsBody').innerHTML = alerts.map(row => `
+    <tr>
+      <td>${escapeHtml(row.id)}</td>
+      <td>${escapeHtml(row.channel || '-')}</td>
+      <td><span class="badge ${pickStatusClass(row.status)}">${escapeHtml(row.status || '-')}</span></td>
+      <td>${escapeHtml(row.matched_value || '-')}</td>
+      <td>${escapeHtml(fmtDate(row.created_at))}</td>
+    </tr>`).join('');
+  document.getElementById('alertsEmpty').classList.toggle('hidden', alerts.length !== 0);
+
+  const timelineRows = pages.filter(p => p.content_changed || p.error_message || (p.status_code && Number(p.status_code) >= 400)).slice(0, 10);
+  document.getElementById('timeline').innerHTML = timelineRows.map(p => `
+    <div class="timeline-item ${p.content_changed ? 'highlight' : ''}">
+      <div class="timeline-top">
+        <div>
+          <div class="mini-kicker">${escapeHtml(p.target_name || p.host || 'unknown target')}</div>
+          <div><a class="link" href="/ui/pages.html#page-${escapeHtml(p.id)}">${escapeHtml(p.title || p.url || '-')}</a></div>
+        </div>
+        <span class="badge ${p.error_message || (p.status_code && Number(p.status_code) >= 400) ? 'fail' : 'info'}">${p.error_message ? 'error' : (p.content_changed ? 'changed' : 'recent')}</span>
+      </div>
+      <div class="mini-desc">Fetched ${escapeHtml(fmtDate(p.fetched_at))} · Status ${escapeHtml(p.status_code ?? '-')} · ${p.content_changed ? 'content changed' : 'no change flag'}</div>
+      <div class="evidence-links">${evidenceLinks(p)}</div>
+    </div>`).join('');
+  document.getElementById('timelineEmpty').classList.toggle('hidden', timelineRows.length !== 0);
+}
+
+attachRefresh(() => guardedLoad(loadOverview));
+window.addEventListener('resize', () => guardedLoad(loadOverview));
+guardedLoad(loadOverview);
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Pages</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'pages',
+  heroEyebrow: 'Evidence Explorer',
+  heroTitle: 'Pages & Evidence',
+  heroDesc: '최근 수집 페이지와 증거 파일을 분리해서 보여준다. 실제 디버깅은 이 페이지에서 한다. 수집 성공 여부, 변경 여부, 에러를 한 번에 보게 했다.',
+  heroMeta: ['evidence 링크', '변경/에러 표시', '수집 상태 확인'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Page Filters</div>
+    <label class="field-label" for="hostFilter">Host</label>
+    <select id="hostFilter" class="control"><option value="">전체</option></select>
+    <label class="field-label" for="statusFilter">Status Class</label>
+    <select id="statusFilter" class="control"><option value="">전체</option><option value="ok">2xx/3xx</option><option value="fail">4xx/5xx</option></select>
+    <label class="field-label" for="changedOnly">변경만 보기</label>
+    <select id="changedOnly" class="control"><option value="">전체</option><option value="changed">changed only</option><option value="error">error only</option></select>
+    <label class="field-label" for="searchBox">검색</label>
+    <input id="searchBox" class="control" type="text" placeholder="title / url / target" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="grid-3" id="pageStats"></section>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Recent Pages</div>
+          <div class="panel-sub">수집 결과와 증거 파일 직접 열기</div>
+        </div>
+        <span class="pill" id="pageCountPill">0 rows</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Target</th><th>Status</th><th>Changed</th><th>Title / URL</th><th>Fetched</th><th>Evidence</th></tr>
+          </thead>
+          <tbody id="pagesBody"></tbody>
+        </table>
+        <div class="empty hidden" id="pagesEmpty">표시할 페이지가 없다.</div>
+      </div>
+    </section>`
+});
+
+let rows = [];
+
+function statusClass(code) {
+  const n = Number(code || 0);
+  if (!n) return 'other';
+  if (n < 400) return 'ok';
+  return 'fail';
+}
+
+function filteredRows() {
+  const host = document.getElementById('hostFilter').value.trim().toLowerCase();
+  const status = document.getElementById('statusFilter').value.trim().toLowerCase();
+  const changed = document.getElementById('changedOnly').value.trim().toLowerCase();
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  return rows.filter(r => {
+    const hostOk = !host || String(r.host || '').toLowerCase() === host;
+    const statusOk = !status || statusClass(r.status_code) === status;
+    const changedOk = !changed || (changed === 'changed' ? !!r.content_changed : !!r.error_message);
+    const joined = [r.target_name, r.host, r.title, r.url, r.skip_reason, r.error_message].map(v => String(v || '').toLowerCase()).join(' ');
+    return hostOk && statusOk && changedOk && (!q || joined.includes(q));
+  });
+}
+
+function renderStats() {
+  const changedCount = rows.filter(r => r.content_changed).length;
+  const errCount = rows.filter(r => r.error_message || Number(r.status_code || 0) >= 400).length;
+  const meaningful = rows.filter(r => r.is_meaningful).length;
+  renderMetricCards(document.getElementById('pageStats'), [
+    { label: 'Loaded', value: rows.length, foot: '최근 페이지 로드 수' },
+    { label: 'Changed', value: changedCount, foot: 'content_changed=true' },
+    { label: 'Meaningful', value: meaningful, foot: 'is_meaningful=true' },
+    { label: 'Errors', value: errCount, foot: 'error_message 또는 4xx/5xx' },
+    { label: 'Hosts', value: uniqueValues(rows, 'host').length, foot: '최근 로드 기준 호스트 수' },
+  ]);
+}
+
+function renderTable() {
+  const list = filteredRows();
+  document.getElementById('pageCountPill').textContent = `${list.length} rows`;
+  document.getElementById('pagesBody').innerHTML = list.map(r => `
+    <tr id="page-${escapeHtml(r.id)}">
+      <td>${escapeHtml(r.id)}</td>
+      <td>${escapeHtml(r.target_name || '-')}<div class="small muted">${escapeHtml(r.host || '-')}</div></td>
+      <td><span class="badge ${statusClass(r.status_code)}">${escapeHtml(r.status_code ?? '-')}</span></td>
+      <td><span class="badge ${r.error_message ? 'fail' : (r.content_changed ? 'info' : 'other')}">${r.error_message ? 'error' : (r.content_changed ? 'changed' : 'stable')}</span></td>
+      <td>${escapeHtml(r.title || '-')}<div class="small">${r.url ? `<a class="link" target="_blank" href="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a>` : '<span class="muted">-</span>'}</div>${r.error_message ? `<div class="small muted">${escapeHtml(r.error_message)}</div>` : ''}</td>
+      <td>${escapeHtml(fmtDate(r.fetched_at))}<div class="small muted">${escapeHtml(fmtAgo(r.fetched_at))}</div></td>
+      <td><div class="evidence-links">${evidenceLinks(r)}</div></td>
+    </tr>`).join('');
+  document.getElementById('pagesEmpty').classList.toggle('hidden', list.length !== 0);
+}
+
+async function loadPages() {
+  rows = await getJson(API.pages(120));
+  fillSelect(document.getElementById('hostFilter'), uniqueValues(rows, 'host'));
+  renderStats();
+  renderTable();
+}
+
+['hostFilter','statusFilter','changedOnly'].forEach(id => document.getElementById(id).addEventListener('change', renderTable));
+document.getElementById('searchBox').addEventListener('input', renderTable);
+attachRefresh(() => guardedLoad(loadPages));
+guardedLoad(loadPages);
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Targets</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'targets',
+  heroEyebrow: 'Collection Coverage',
+  heroTitle: 'Targets Overview',
+  heroDesc: '타겟 페이지는 수정 버튼 없이도 운영 판단이 가능해야 한다. queued 여부, 마지막 큐잉, 마지막 수집, seed URL을 분리해서 상태를 읽기 쉽게 만들었다.',
+  heroMeta: ['queue 가시성', 'last fetched 점검', 'seed URL 확인'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Target Filters</div>
+    <label class="field-label" for="enabledFilter">Enabled</label>
+    <select id="enabledFilter" class="control"><option value="">전체</option><option value="true">enabled</option><option value="false">disabled</option></select>
+    <label class="field-label" for="queueFilter">Queue State</label>
+    <select id="queueFilter" class="control"><option value="">전체</option><option value="queued">queued</option><option value="idle">idle</option><option value="never">never fetched</option></select>
+    <label class="field-label" for="searchBox">검색</label>
+    <input id="searchBox" class="control" type="text" placeholder="name / seed_url" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="grid-3" id="targetStats"></section>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Registered Targets</div>
+          <div class="panel-sub">읽기 전용 상태 점검 화면</div>
+        </div>
+        <span class="pill" id="targetCountPill">0 rows</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Name</th><th>Seed URL</th><th>Enabled</th><th>Queue</th><th>Last Queued</th><th>Last Fetched</th></tr>
+          </thead>
+          <tbody id="targetsBody"></tbody>
+        </table>
+        <div class="empty hidden" id="targetsEmpty">표시할 타겟이 없다.</div>
+      </div>
+    </section>`
+});
+
+let rows = [];
+
+function filteredRows() {
+  const enabled = document.getElementById('enabledFilter').value.trim().toLowerCase();
+  const queue = document.getElementById('queueFilter').value.trim().toLowerCase();
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  return rows.filter(r => {
+    const enabledOk = !enabled || String(!!r.enabled) === enabled;
+    const queueState = !r.last_fetched_at ? 'never' : (r.is_queued ? 'queued' : 'idle');
+    const queueOk = !queue || queueState === queue;
+    const joined = [r.name, r.seed_url].map(v => String(v || '').toLowerCase()).join(' ');
+    return enabledOk && queueOk && (!q || joined.includes(q));
+  });
+}
+
+function renderStats() {
+  const enabledCount = rows.filter(r => r.enabled).length;
+  const queuedCount = rows.filter(r => r.is_queued).length;
+  const neverCount = rows.filter(r => !r.last_fetched_at).length;
+  const fetchedCount = rows.filter(r => !!r.last_fetched_at).length;
+  renderMetricCards(document.getElementById('targetStats'), [
+    { label: 'Targets', value: rows.length, foot: '총 등록 수' },
+    { label: 'Enabled', value: enabledCount, foot: 'enabled=true' },
+    { label: 'Queued', value: queuedCount, foot: 'is_queued=true' },
+    { label: 'Fetched', value: fetchedCount, foot: 'last_fetched_at 존재' },
+    { label: 'Never Fetched', value: neverCount, foot: '한 번도 수집 안 됨' },
+  ]);
+}
+
+function renderTable() {
+  const list = filteredRows();
+  document.getElementById('targetCountPill').textContent = `${list.length} rows`;
+  document.getElementById('targetsBody').innerHTML = list.map(r => {
+    const queueState = !r.last_fetched_at ? 'never' : (r.is_queued ? 'queued' : 'idle');
+    return `
+      <tr>
+        <td>${escapeHtml(r.id)}</td>
+        <td>${escapeHtml(r.name || '-')}</td>
+        <td>${r.seed_url ? `<a class="link" target="_blank" href="${escapeHtml(r.seed_url)}">${escapeHtml(r.seed_url)}</a>` : '<span class="muted">-</span>'}</td>
+        <td><span class="badge ${r.enabled ? 'ok' : 'fail'}">${r.enabled ? 'enabled' : 'disabled'}</span></td>
+        <td><span class="badge ${queueState === 'queued' ? 'warn' : (queueState === 'never' ? 'fail' : 'info')}">${queueState}</span></td>
+        <td>${escapeHtml(fmtDate(r.last_queued_at))}</td>
+        <td>${escapeHtml(fmtDate(r.last_fetched_at))}<div class="small muted">${escapeHtml(fmtAgo(r.last_fetched_at))}</div></td>
+      </tr>`;
+  }).join('');
+  document.getElementById('targetsEmpty').classList.toggle('hidden', list.length !== 0);
+}
+
+async function loadTargets() {
+  rows = await getJson(API.targets);
+  renderStats();
+  renderTable();
+}
+
+['enabledFilter','queueFilter'].forEach(id => document.getElementById(id).addEventListener('change', renderTable));
+document.getElementById('searchBox').addEventListener('input', renderTable);
+attachRefresh(() => guardedLoad(loadTargets));
+guardedLoad(loadTargets);
+</script>
+</body>
+</html>
