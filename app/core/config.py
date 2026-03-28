@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     screenshot_dir: Path = BASE_DIR / "evidence" / "screenshots"
     ui_dir: Path = BASE_DIR / "ui"
 
+    ransomware_live_api_base_url: str = "https://api.ransomware.live/v2"
+
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

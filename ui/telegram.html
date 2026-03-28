@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Telegram</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'telegram',
+  heroEyebrow: 'Threat Tracking',
+  heroTitle: 'Telegram',
+  heroDesc: '다크웹 게시글에서 추출한 텔레그램 ID·채널을 추적한다. 채팅 내용에서 가상화폐 지갑 주소를 자동 추출하고 조직 간 연결 관계를 Mapping한다.',
+  heroMeta: ['telegram scraping', 'wallet extraction', 'fuzzy matching'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Telegram Filters</div>
+    <label class="field-label" for="tgTypeFilter">Type</label>
+    <select id="tgTypeFilter" class="control">
+      <option value="">전체</option>
+      <option value="channel">Channel</option>
+      <option value="user">User ID</option>
+      <option value="group">Group</option>
+    </select>
+    <label class="field-label" for="tgLinkedFilter">연결 상태</label>
+    <select id="tgLinkedFilter" class="control">
+      <option value="">전체</option>
+      <option value="linked">Incident 연결됨</option>
+      <option value="unlinked">미연결</option>
+    </select>
+    <label class="field-label" for="tgSearch">검색</label>
+    <input id="tgSearch" class="control" type="text" placeholder="@username / 채널명" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
+      <article class="metric"><div class="metric-label">Tracked IDs</div><div class="metric-value" id="mTgIds">-</div><div class="metric-foot">수집된 텔레그램 ID</div></article>
+      <article class="metric"><div class="metric-label">Wallets Found</div><div class="metric-value" id="mTgWallets">-</div><div class="metric-foot">채팅에서 추출된 지갑</div></article>
+      <article class="metric"><div class="metric-label">Linked Incidents</div><div class="metric-value" id="mTgIncidents">-</div><div class="metric-foot">사건과 연결된 ID</div></article>
+    </div>
+    <section class="panel" style="padding:24px">
+      <div class="card-title">Telegram ID Registry</div>
+      <p class="muted" style="margin-bottom:16px;font-size:13px">ransomware.live API + 다크웹 크롤러에서 수집된 텔레그램 주소 목록입니다. 비어있는 텔레그램 칸은 주기적으로 API 데이터로 채워집니다.</p>
+      <div id="tgTable">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
+          <span>Telegram Handle</span><span>Type</span><span>Source</span><span>Associated Incident</span><span>Wallets</span>
+        </div>
+        <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
+          ⚡ 텔레그램 수집 데이터 대기 중
+        </div>
+      </div>
+    </section>`
+});
+
+async function loadTelegram() {
+  // TODO: fetch('/api/tracking/telegram') 연동
+  setUpdated(nowStr());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  attachRefresh(loadTelegram);
+  loadTelegram();
+});
+</script>
+</body>
+</html>

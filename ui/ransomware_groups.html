@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Ransomware Groups</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'ransomware-groups',
+  heroEyebrow: 'Threat Tracking',
+  heroTitle: 'Ransomware Groups',
+  heroDesc: 'ransomware.live API 기반으로 활동 중인 랜섬웨어 조직 프로파일을 추적한다. 조직별 피해 기업 수, 활동 상태, 텔레그램 연결 정보를 한눈에 확인한다.',
+  heroMeta: ['ransomware.live', 'live feed', 'group profiling'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Group Filters</div>
+    <label class="field-label" for="statusFilter">Status</label>
+    <select id="statusFilter" class="control">
+      <option value="">전체</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+    </select>
+    <label class="field-label" for="groupSearch">검색</label>
+    <input id="groupSearch" class="control" type="text" placeholder="조직명 검색" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="panel" style="padding:24px">
+      <div class="card-title">Ransomware Group Registry</div>
+      <p class="muted" style="margin-bottom:16px;font-size:13px">ransomware.live API 연동 후 실시간 데이터가 표시됩니다. 현재는 플레이스홀더 상태입니다.</p>
+      <div id="groupTable">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
+          <span>Group Name</span><span>Victims</span><span>Status</span><span>Telegram</span><span>Last Seen</span>
+        </div>
+        <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
+          ⚡ API 연동 대기 중 — ransomware.live 데이터가 여기에 표시됩니다
+        </div>
+      </div>
+    </section>`
+});
+
+// 추후 API 연동 자리
+async function loadGroups() {
+  // TODO: fetch('/api/ransomware/groups') 연동
+  setUpdated(nowStr());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  attachRefresh(loadGroups);
+  loadGroups();
+});
+</script>
+</body>
+</html>

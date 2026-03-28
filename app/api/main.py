@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes_hits import router as hits_router
 from app.api.routes_pages import router as pages_router
+from app.api.routes_rl import router as rl_router
 from app.api.routes_targets import router as targets_router
 from app.api.routes_watchlist import router as watchlist_router
 from app.core.config import settings
@@ -21,6 +22,7 @@ app.include_router(targets_router)
 app.include_router(watchlist_router)
 app.include_router(hits_router)
 app.include_router(pages_router)
+app.include_router(rl_router)
 
 # 정적 파일 서빙
 if settings.evidence_dir.exists():

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Incidents</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'incidents',
+  heroEyebrow: 'Threat Tracking',
+  heroTitle: 'Incidents',
+  heroDesc: 'Incident ID(기업명+날짜) 기반으로 흩어진 정보를 하나의 사건으로 연결한다. API 데이터 → 크롤러 데이터 → 텔레그램 → 지갑 주소를 한 줄로 꿰어 전체 공격 체인을 시각화한다.',
+  heroMeta: ['incident ID', 'correlation', 'fuzzy matching', 'attack chain'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Incident Filters</div>
+    <label class="field-label" for="incidentStatusFilter">Status</label>
+    <select id="incidentStatusFilter" class="control">
+      <option value="">전체</option>
+      <option value="published">Published</option>
+      <option value="awaiting">Awaiting</option>
+      <option value="negotiated">Negotiated</option>
+    </select>
+    <label class="field-label" for="incidentCorpFilter">is_corp</label>
+    <select id="incidentCorpFilter" class="control">
+      <option value="">전체</option>
+      <option value="true">Corp (기업)</option>
+      <option value="false">Non-Corp</option>
+    </select>
+    <label class="field-label" for="incidentSearch">검색</label>
+    <input id="incidentSearch" class="control" type="text" placeholder="Incident ID / 기업명" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+      <article class="metric"><div class="metric-label">Total Incidents</div><div class="metric-value" id="mTotal">-</div><div class="metric-foot">전체 사건</div></article>
+      <article class="metric"><div class="metric-label">Corp Incidents</div><div class="metric-value" id="mCorp">-</div><div class="metric-foot">기업 타깃</div></article>
+      <article class="metric"><div class="metric-label">Linked Telegram</div><div class="metric-value" id="mTg">-</div><div class="metric-foot">텔레그램 연결됨</div></article>
+      <article class="metric"><div class="metric-label">Linked Wallet</div><div class="metric-value" id="mWallet">-</div><div class="metric-foot">지갑 연결됨</div></article>
+    </div>
+    <section class="panel" style="padding:24px;margin-bottom:18px">
+      <div class="card-title">Incident Registry</div>
+      <p class="muted" style="margin-bottom:16px;font-size:13px">
+        각 Incident은 <code style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px">기업명_날짜</code> 형식의 고유 ID로 관리됩니다.
+        같은 텔레그램 ID가 감지되면 서로 다른 소스의 데이터도 하나의 사건으로 자동 병합됩니다.
+      </p>
+      <div id="incidentTable">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
+          <span>Incident ID</span><span>Group</span><span>Status</span><span>is_corp</span><span>Telegram</span><span>Wallet</span><span>Detected</span>
+        </div>
+        <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
+          ⚡ 사건 데이터 대기 중 — 수집 후 자동으로 채워집니다
+        </div>
+      </div>
+    </section>
+    <section class="panel" style="padding:24px">
+      <div class="card-title">Attack Chain Example</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 0;font-size:13px">
+        <div style="background:rgba(90,209,255,.12);border:1px solid rgba(90,209,255,.3);border-radius:8px;padding:10px 16px;color:#5ad1ff">
+          🏢 피해 기업<br/><span style="font-size:11px;color:#7f95c8">ransomware.live API</span>
+        </div>
+        <span style="color:#7f95c8">→</span>
+        <div style="background:rgba(157,139,255,.12);border:1px solid rgba(157,139,255,.3);border-radius:8px;padding:10px 16px;color:#9d8bff">
+          📢 텔레그램 ID<br/><span style="font-size:11px;color:#7f95c8">다크웹 크롤러</span>
+        </div>
+        <span style="color:#7f95c8">→</span>
+        <div style="background:rgba(255,190,92,.12);border:1px solid rgba(255,190,92,.3);border-radius:8px;padding:10px 16px;color:#ffbe5c">
+          💰 지갑 주소<br/><span style="font-size:11px;color:#7f95c8">텔레그램 채팅</span>
+        </div>
+        <span style="color:#7f95c8">→</span>
+        <div style="background:rgba(91,240,191,.12);border:1px solid rgba(91,240,191,.3);border-radius:8px;padding:10px 16px;color:#5bf0bf">
+          🔗 Incident 연결<br/><span style="font-size:11px;color:#7f95c8">Fuzzy Matching</span>
+        </div>
+      </div>
+    </section>`
+});
+
+async function loadIncidents() {
+  // TODO: fetch('/api/tracking/incidents') 연동
+  setUpdated(nowStr());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  attachRefresh(loadIncidents);
+  loadIncidents();
+});
+</script>
+</body>
+</html>

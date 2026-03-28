@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Victims</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'victims',
+  heroEyebrow: 'Threat Tracking',
+  heroTitle: 'Victims',
+  heroDesc: '랜섬웨어 조직에 의해 피해를 입은 기업 타임라인을 추적한다. Awaiting → Published 상태 변화, 협상 감지(deadline 소멸)를 이벤트로 기록한다.',
+  heroMeta: ['deadline tracking', 'negotiation detection', 'corp intel'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Victim Filters</div>
+    <label class="field-label" for="victimStatusFilter">Status</label>
+    <select id="victimStatusFilter" class="control">
+      <option value="">전체</option>
+      <option value="awaiting">Awaiting (deadline)</option>
+      <option value="published">Published (유출됨)</option>
+      <option value="negotiated">Negotiated (협상 추정)</option>
+    </select>
+    <label class="field-label" for="victimCountryFilter">Country</label>
+    <select id="victimCountryFilter" class="control"><option value="">전체</option></select>
+    <label class="field-label" for="victimSearch">검색</label>
+    <input id="victimSearch" class="control" type="text" placeholder="기업명 / 도메인" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <div id="metricsRow" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
+      <article class="metric"><div class="metric-label">Awaiting</div><div class="metric-value" id="mAwaiting">-</div><div class="metric-foot">데드라인 남은 기업</div></article>
+      <article class="metric"><div class="metric-label">Published</div><div class="metric-value" id="mPublished">-</div><div class="metric-foot">이미 유출된 기업</div></article>
+      <article class="metric"><div class="metric-label">Negotiated</div><div class="metric-value" id="mNegotiated">-</div><div class="metric-foot">협상 완료 추정</div></article>
+    </div>
+    <section class="panel" style="padding:24px">
+      <div class="card-title">Victim Timeline</div>
+      <p class="muted" style="margin-bottom:16px;font-size:13px">ransomware.live API 연동 후 실시간 피해 기업 목록이 표시됩니다.</p>
+      <div id="victimTable">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
+          <span>Company</span><span>Country</span><span>Group</span><span>Status</span><span>Deadline</span><span>is_corp</span>
+        </div>
+        <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
+          ⚡ API 연동 대기 중 — 피해 기업 데이터가 여기에 표시됩니다
+        </div>
+      </div>
+    </section>`
+});
+
+async function loadVictims() {
+  // TODO: fetch('/api/ransomware/victims') 연동
+  setUpdated(nowStr());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  attachRefresh(loadVictims);
+  loadVictims();
+});
+</script>
+</body>
+</html>

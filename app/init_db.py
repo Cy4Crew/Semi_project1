@@ -87,6 +87,14 @@ SCHEMA = [
         alert_fingerprint TEXT
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS rl_info_cache (
+        id         INT PRIMARY KEY DEFAULT 1,
+        payload    JSONB NOT NULL,
+        fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CHECK (id = 1)
+    )
+    """,
 ]
 
 INDEXES = [
@@ -136,6 +144,16 @@ def init_db(load_seed_data: bool = True) -> None:
             cur.execute(
                 "ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS is_regex BOOLEAN NOT NULL DEFAULT FALSE"
             )
+
+            # ransomware.live 캐시 테이블 (기존 DB 마이그레이션용)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rl_info_cache (
+                    id         INT PRIMARY KEY DEFAULT 1,
+                    payload    JSONB NOT NULL,
+                    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CHECK (id = 1)
+                )
+            """)
 
             for stmt in INDEXES:
                 cur.execute(stmt)

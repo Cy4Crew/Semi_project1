@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Ransomware.live</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+  <style>
+    .rl-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .rl-meta-block {
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 16px;
+      padding: 20px 24px;
+      background: rgba(255,255,255,.03);
+      position: relative;
+      overflow: hidden;
+    }
+    .rl-meta-block::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      border-radius: 16px 16px 0 0;
+    }
+    .rl-meta-block.blue::before  { background: linear-gradient(90deg, #5ad1ff, #5679ff); }
+    .rl-meta-block.green::before { background: linear-gradient(90deg, #5bf0bf, #2fd187); }
+    .rl-meta-block.amber::before { background: linear-gradient(90deg, #ffbe5c, #ff8a5b); }
+    .rl-meta-block.purple::before{ background: linear-gradient(90deg, #9d8bff, #5f6bff); }
+
+    .rl-block-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-weight: 900;
+      color: #7f95c8;
+      margin-bottom: 14px;
+    }
+    .rl-block-number {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .rl-block-number.blue   { color: #5ad1ff; }
+    .rl-block-number.green  { color: #5bf0bf; }
+    .rl-block-number.amber  { color: #ffbe5c; }
+    .rl-block-number.purple { color: #9d8bff; }
+
+    .rl-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      font-size: 13px;
+    }
+    .rl-row:last-child { border-bottom: none; }
+    .rl-row-key { color: #a3b1d2; font-weight: 700; }
+    .rl-row-val { color: #edf2ff; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; }
+    .rl-row-ago { color: #7f95c8; font-size: 11px; margin-top: 2px; }
+
+    .freshness-bar {
+      height: 4px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.08);
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .freshness-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .6s ease;
+    }
+    .freshness-fill.fresh  { background: #5bf0bf; }
+    .freshness-fill.warn   { background: #ffbe5c; }
+    .freshness-fill.stale  { background: #ff8b9b; }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .status-chip.live  { background: rgba(91,240,191,.14); color: #5bf0bf; border: 1px solid rgba(91,240,191,.28); }
+    .status-chip.warn  { background: rgba(255,190,92,.14);  color: #ffbe5c; border: 1px solid rgba(255,190,92,.28); }
+    .status-chip.dead  { background: rgba(255,139,155,.14); color: #ff8b9b; border: 1px solid rgba(255,139,155,.28); }
+
+    .raw-box {
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #a3cbff;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.7;
+      margin-top: 16px;
+    }
+
+    .rl-full { grid-column: 1 / -1; }
+
+    @media (max-width: 768px) {
+      .rl-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'rl-dashboard',
+  heroEyebrow: 'Threat Tracking',
+  heroTitle: 'Ransomware.live',
+  heroDesc: 'ransomware.live /info API 메타데이터를 실시간으로 모니터링한다. 데이터 신선도, 피해 기업 수, 그룹 수 등 핵심 지표를 한눈에 확인하고 이상 감지 시 경보한다.',
+  heroMeta: ['/info API', 'DB cache', '하루 1회 현행화', 'staleness alert'],
+  actionHtml: `
+    <button class="btn ghost" id="rawToggleBtn" type="button">Raw JSON</button>
+    <button class="btn primary" id="syncBtn">현행화</button>`,
+  sidebarExtra: `
+    <div class="card-title">RL API Status</div>
+    <div class="status-row"><span class="dot" id="rlApiDot" style="background:#7f95c8"></span><span id="rlApiLabel">확인 중...</span></div>
+    <div style="margin-top:14px">
+      <div class="field-label">데이터 출처</div>
+      <div style="font-size:12px;color:#edf2ff">DB 캐시 (로컬)</div>
+    </div>
+    <div style="margin-top:14px">
+      <div class="field-label">API Base URL</div>
+      <div style="font-size:12px;color:#edf2ff;word-break:break-all;font-family:monospace">https://api.ransomware.live/v2</div>
+    </div>
+    <div style="margin-top:14px">
+      <div class="field-label">DB 저장 시각</div>
+      <div style="font-size:12px;color:#edf2ff" id="rlCachedAt">-</div>
+    </div>
+    <div style="margin-top:14px">
+      <div class="field-label">Staleness 기준</div>
+      <div style="font-size:12px;color:#edf2ff">Victims: 1h / Groups: 6h</div>
+    </div>`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+
+    <!-- 핵심 지표 4개 -->
+    <div class="rl-grid" id="mainGrid">
+      <div class="rl-meta-block blue">
+        <div class="rl-block-title">Victims Total</div>
+        <div class="rl-block-number blue" id="numVictims">-</div>
+        <div class="muted" style="font-size:13px;margin-top:6px">전체 피해 기업 수</div>
+        <div class="freshness-bar"><div class="freshness-fill fresh" id="freshVictims" style="width:0%"></div></div>
+      </div>
+
+      <div class="rl-meta-block green">
+        <div class="rl-block-title">Groups</div>
+        <div class="rl-block-number green" id="numGroups">-</div>
+        <div class="muted" style="font-size:13px;margin-top:6px">추적 중인 랜섬웨어 그룹</div>
+        <div class="freshness-bar"><div class="freshness-fill fresh" id="freshGroups" style="width:0%"></div></div>
+      </div>
+
+      <div class="rl-meta-block amber">
+        <div class="rl-block-title">Cyberattacks</div>
+        <div class="rl-block-number amber" id="numAttacks">-</div>
+        <div class="muted" style="font-size:13px;margin-top:6px">누적 사이버 공격 기록</div>
+        <div class="freshness-bar"><div class="freshness-fill fresh" id="freshAttacks" style="width:0%"></div></div>
+      </div>
+
+      <div class="rl-meta-block purple">
+        <div class="rl-block-title">Infostealers</div>
+        <div class="rl-block-number purple" id="numInfostealers">-</div>
+        <div class="muted" style="font-size:13px;margin-top:6px">인포스틸러 최근 업데이트</div>
+        <div class="freshness-bar"><div class="freshness-fill fresh" id="freshInfo" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- 상세 타임스탬프 패널 -->
+    <div class="rl-grid">
+      <section class="panel" style="padding:24px">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Victims Update Log</div>
+            <div class="panel-sub">피해 기업 데이터 최신화 현황</div>
+          </div>
+          <span class="status-chip live" id="victimChip">Live</span>
+        </div>
+        <div id="victimMeta"></div>
+      </section>
+
+      <section class="panel" style="padding:24px">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Groups Update Log</div>
+            <div class="panel-sub">그룹 DB 최신화 현황</div>
+          </div>
+          <span class="status-chip live" id="groupChip">Live</span>
+        </div>
+        <div id="groupMeta"></div>
+      </section>
+
+      <section class="panel" style="padding:24px">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Cyberattacks Update Log</div>
+            <div class="panel-sub">공격 이벤트 RSS / JSON 최신화</div>
+          </div>
+          <span class="status-chip live" id="attackChip">Live</span>
+        </div>
+        <div id="attackMeta"></div>
+      </section>
+
+      <section class="panel" style="padding:24px">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Last Updates (기타)</div>
+            <div class="panel-sub">BTC / Infostealers / TTPs / CVEs</div>
+          </div>
+        </div>
+        <div id="lastUpdatesMeta"></div>
+      </section>
+    </div>
+
+    <!-- Raw JSON 토글 패널 -->
+    <section class="panel rl-full" id="rawPanel" style="padding:24px;display:none">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Raw /info Response</div>
+          <div class="panel-sub">ransomware.live API 원본 응답</div>
+        </div>
+        <span id="rawFetchedAt" class="muted" style="font-size:12px"></span>
+      </div>
+      <div class="raw-box" id="rawJson">로딩 중...</div>
+    </section>`
+});
+
+// ── 유틸 ───────────────────────────────────────────
+function ageMinutes(isoStr) {
+  if (!isoStr) return Infinity;
+  return (Date.now() - new Date(isoStr).getTime()) / 60000;
+}
+function freshnessWidth(ageMin, warnMin, deadMin) {
+  if (ageMin >= deadMin) return { w: 100, cls: 'stale' };
+  if (ageMin >= warnMin) return { w: Math.round((ageMin / deadMin) * 100), cls: 'warn' };
+  return { w: Math.round((ageMin / warnMin) * 60), cls: 'fresh' };
+}
+function chipState(ageMin, warnMin, deadMin) {
+  if (ageMin >= deadMin) return { cls: 'dead', label: 'Stale' };
+  if (ageMin >= warnMin) return { cls: 'warn', label: 'Aging' };
+  return { cls: 'live', label: 'Live' };
+}
+function metaRows(entries) {
+  return entries.map(([key, val]) => `
+    <div class="rl-row">
+      <div>
+        <div class="rl-row-key">${escapeHtml(key)}</div>
+        <div class="rl-row-ago">${escapeHtml(val ? fmtAgo(val) : '-')}</div>
+      </div>
+      <div class="rl-row-val">${escapeHtml(val ? fmtDate(val) : '-')}</div>
+    </div>`).join('');
+}
+function setFreshBar(id, ageMin, warnMin, deadMin) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const { w, cls } = freshnessWidth(ageMin, warnMin, deadMin);
+  el.style.width = w + '%';
+  el.className = 'freshness-fill ' + cls;
+}
+function setChip(id, ageMin, warnMin, deadMin) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const { cls, label } = chipState(ageMin, warnMin, deadMin);
+  el.className = 'status-chip ' + cls;
+  el.textContent = label;
+}
+function setSyncBtn(loading) {
+  const btn = document.getElementById('syncBtn');
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.textContent = loading ? '현행화 중...' : '현행화';
+}
+
+// ── 렌더 ───────────────────────────────────────────
+let lastRaw = null;
+let rawVisible = false;
+
+function renderInfo(payload, fetchedAt) {
+  const V = payload.Victims        || {};
+  const G = payload.Groups         || {};
+  const A = payload.Cyberattacks   || {};
+  const L = payload['Last Updates']|| {};
+
+  // 숫자 지표
+  document.getElementById('numVictims').textContent   = (V.Numbers ?? '-').toLocaleString?.() ?? '-';
+  document.getElementById('numGroups').textContent    = (G.Numbers ?? '-').toLocaleString?.() ?? '-';
+  document.getElementById('numAttacks').textContent   = (A.Number  ?? '-').toLocaleString?.() ?? '-';
+  document.getElementById('numInfostealers').textContent = L.Infostealers ? fmtAgo(L.Infostealers) : '-';
+
+  // freshness bars
+  const vAge = ageMinutes(V['Last Update json'] || V['Last Update CSV']);
+  const gAge = ageMinutes(G['Last Update']);
+  const aAge = ageMinutes(A['Last Update json'] || A['Last Update RSS']);
+  const iAge = ageMinutes(L.Infostealers);
+
+  setFreshBar('freshVictims', vAge, 60,  180);
+  setFreshBar('freshGroups',  gAge, 360, 720);
+  setFreshBar('freshAttacks', aAge, 60,  180);
+  setFreshBar('freshInfo',    iAge, 120, 480);
+
+  setChip('victimChip', vAge, 60,  180);
+  setChip('groupChip',  gAge, 360, 720);
+  setChip('attackChip', aAge, 60,  180);
+
+  // 상세 타임스탬프
+  document.getElementById('victimMeta').innerHTML = metaRows([
+    ['Last Update JSON', V['Last Update json']],
+    ['Last Update CSV',  V['Last Update CSV']],
+    ['Last Update RSS',  V['Last Update RSS']],
+    ['Total Numbers',    V.Numbers ? String(V.Numbers) + ' victims' : null],
+  ]);
+  document.getElementById('groupMeta').innerHTML = metaRows([
+    ['Last Update', G['Last Update']],
+    ['Total Groups', G.Numbers ? String(G.Numbers) + ' groups' : null],
+  ]);
+  document.getElementById('attackMeta').innerHTML = metaRows([
+    ['Last Update JSON', A['Last Update json']],
+    ['Last Update RSS',  A['Last Update RSS']],
+    ['Total Number',     A.Number ? String(A.Number) + ' events' : null],
+  ]);
+  document.getElementById('lastUpdatesMeta').innerHTML = metaRows([
+    ['Infostealers',     L.Infostealers],
+    ['TTPs',             L.TTPs],
+    ['Vulnerabilities',  L.Vulnerabilities],
+    ['BTC Transactions', L['BTC Transactions']],
+  ]);
+
+  // 사이드바 DB 저장 시각
+  const cachedEl = document.getElementById('rlCachedAt');
+  if (cachedEl) cachedEl.textContent = fetchedAt ? fmtDate(fetchedAt) : '-';
+
+  // dot
+  const dot = document.getElementById('rlApiDot');
+  const lbl = document.getElementById('rlApiLabel');
+  if (dot) dot.style.background = '#5bf0bf';
+  if (lbl) lbl.textContent = 'DB 캐시 로드됨';
+}
+
+function renderRaw(payload, fetchedAt) {
+  const el = document.getElementById('rawJson');
+  const ts = document.getElementById('rawFetchedAt');
+  if (el) el.textContent = JSON.stringify(payload, null, 2);
+  if (ts) ts.textContent = 'DB 저장: ' + (fetchedAt ? fmtDate(fetchedAt) : '-');
+}
+
+// ── DB 캐시 조회 (페이지 로드 시) ────────────────────
+async function loadFromCache() {
+  const res = await fetch('/api/rl/info', { cache: 'no-store' });
+
+  if (res.status === 404) {
+    // 캐시 없음 → 안내 메시지
+    const dot = document.getElementById('rlApiDot');
+    const lbl = document.getElementById('rlApiLabel');
+    if (dot) dot.style.background = '#ffbe5c';
+    if (lbl) lbl.textContent = '캐시 없음 — 현행화 버튼을 눌러주세요';
+    setUpdated('캐시 없음');
+    return;
+  }
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const json = await res.json();
+  lastRaw = json.payload;
+  renderInfo(json.payload, json.fetched_at);
+  setUpdated(fmtDate(json.fetched_at) + ' (DB)');
+  if (rawVisible) renderRaw(json.payload, json.fetched_at);
+}
+
+// ── 현행화 버튼 (ransomware.live 직접 호출 → DB 저장) ─
+async function syncFromLive() {
+  setSyncBtn(true);
+  try {
+    const res = await fetch('/api/rl/info/refresh', { method: 'POST', cache: 'no-store' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const json = await res.json();
+    lastRaw = json.payload;
+    renderInfo(json.payload, json.fetched_at);
+    setUpdated(fmtDate(json.fetched_at) + ' (현행화)');
+    if (rawVisible) renderRaw(json.payload, json.fetched_at);
+
+    const dot = document.getElementById('rlApiDot');
+    const lbl = document.getElementById('rlApiLabel');
+    if (dot) dot.style.background = '#5bf0bf';
+    if (lbl) lbl.textContent = '현행화 완료';
+  } finally {
+    setSyncBtn(false);
+  }
+}
+
+// ── 이벤트 바인딩 ────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Raw JSON 토글
+  const rawBtn   = document.getElementById('rawToggleBtn');
+  const rawPanel = document.getElementById('rawPanel');
+  if (rawBtn && rawPanel) {
+    rawBtn.addEventListener('click', () => {
+      rawVisible = !rawVisible;
+      rawPanel.style.display = rawVisible ? 'block' : 'none';
+      rawBtn.textContent = rawVisible ? 'Hide Raw' : 'Raw JSON';
+      if (rawVisible && lastRaw) renderRaw(lastRaw, document.getElementById('rlCachedAt')?.textContent);
+    });
+  }
+
+  // 현행화 버튼
+  const syncBtn = document.getElementById('syncBtn');
+  if (syncBtn) syncBtn.addEventListener('click', () => guardedLoad(syncFromLive));
+
+  // 페이지 로드: DB 캐시 조회 (API 호출 없음)
+  guardedLoad(loadFromCache);
+});
+</script>
+</body>
+</html>
