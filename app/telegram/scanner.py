@@ -62,13 +62,6 @@ TARGET_KEYWORDS = {
 
 
 def disambiguate_wallet(coin_type, addr, text):
-    """
-    주소 형태가 겹치는 경우 가장 유력한 코인 이름을 반환합니다.
-    
-    - SOL은 Base58이라 BTC/LTC legacy와 겹칠 수 있음
-      → 컨텍스트에 solana 관련 키워드가 있으면 SOL, 없으면 원래 코인
-    - BTC legacy(1..., 3...)와 기타 겹침 → 길이/prefix로 판별
-    """
     display = COIN_DISPLAY.get(coin_type, coin_type)
 
     if coin_type == "SOL":
@@ -89,9 +82,6 @@ def disambiguate_wallet(coin_type, addr, text):
 
 
 def extract_all_info(text, channel_name, source="chat"):
-    """
-    텍스트에서 가상화폐 지갑 주소, 이메일, URL, 텔레그램 링크를 추출하고 저장합니다.
-    """
     if not text:
         return {"wallets": [], "emails": [], "urls": [], "tg_links": []}
 
@@ -194,7 +184,6 @@ async def join_target_channel(client, target_id):
 
 
 async def collect_channel_info(client, channel_entity, source_type="entered"):
-    """채널 ID와 관리자 ID를 수집하여 저장합니다."""
     channel_name = getattr(channel_entity, 'title', 'Unknown')
     channel_id = channel_entity.id
 
@@ -215,7 +204,6 @@ async def collect_channel_info(client, channel_entity, source_type="entered"):
 
 
 async def collect_members(client, channel_entity):
-    """채널/그룹의 멤버 닉네임과 ID를 수집합니다."""
     channel_name = getattr(channel_entity, 'title', 'Unknown')
     channel_id = channel_entity.id
     members = []
@@ -239,10 +227,6 @@ async def collect_members(client, channel_entity):
 
 
 async def resolve_private_invite(client, invite_hash, found_in_channel=None):
-    """
-    비공개 채널 초대 링크(+xxx)의 고유 ID를 API로 조회합니다.
-    가입하지 않고 정보만 가져옵니다.
-    """
     try:
         result = await client(CheckChatInviteRequest(hash=invite_hash))
 
