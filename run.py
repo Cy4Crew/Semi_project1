@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-
 import uvicorn
 
 from app.api.main import app
@@ -13,7 +12,8 @@ from app.crawler.scheduler import scheduler
 from app.init_db import init_db
 from app.notifier.worker import alert_worker
 from app.repository.targets import reset_queued_targets
-from app.telegram.telegram_bridge import run_bridge as run_tg_bridge  # [추가] 텔레그램 수집기 브릿지
+# [추가] 텔레그램 수집기 브릿지 병합
+from app.telegram.telegram_bridge import run_bridge as run_tg_bridge
 
 
 def run_api() -> None:
@@ -28,6 +28,7 @@ async def run_alert_worker() -> None:
     await alert_worker.run()
 
 
+# 텔레그램 브릿지의 예외 처리를 위한 래퍼 함수 병합
 async def _safe_tg_bridge():
     try:
         await run_tg_bridge()
@@ -40,15 +41,19 @@ async def _safe_tg_bridge():
 async def run_all() -> None:
     api_config = uvicorn.Config(app, host=settings.api_host, port=settings.api_port, log_level="info")
     api_server = uvicorn.Server(api_config)
+    
+    # 모든 서비스(API, Crawler, Alert, Telegram)를 태스크 리스트에 포함
     tasks = [
         asyncio.create_task(api_server.serve()),
         asyncio.create_task(run_crawler()),
         asyncio.create_task(run_alert_worker()),
-        asyncio.create_task(_safe_tg_bridge()),
+        asyncio.create_task(_safe_tg_bridge()),  # 텔레그램 브릿지 태스크 추가
     ]
+    
     try:
         await asyncio.gather(*tasks)
     finally:
+        # 종료 시 모든 태스크 취소
         for task in tasks:
             task.cancel()
 
@@ -75,6 +80,7 @@ def main() -> None:
     if args.mode in {"all", "api", "crawler", "alert_worker"}:
         init_db(load_seed_data=True)
 
+    # 대기 중인 타겟 상태 초기화
     with get_conn() as conn:
         reset_queued_targets(conn)
         conn.commit()
@@ -87,6 +93,7 @@ def main() -> None:
         elif args.mode == "alert_worker":
             asyncio.run(run_alert_worker())
         else:
+            # 기본값 'all'일 때 모든 비동기 서비스 실행
             asyncio.run(run_all())
     finally:
         close_pool()
