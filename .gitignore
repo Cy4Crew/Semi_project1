@@ -19,6 +19,7 @@ env/
 
 # 크롤링 수집 데이터 (용량 크고 민감한 정보 포함)
 evidence/
+data/
 
 # DB 관련
 *.sql

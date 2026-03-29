@@ -37,6 +37,7 @@ services:
       - ./ui:/app/ui
       - ./targets.json:/app/targets.json
       - ./watchlist.json:/app/watchlist.json
+      - ./data:/app/data
 
 volumes:
   pgdata:
