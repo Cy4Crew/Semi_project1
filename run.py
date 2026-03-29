@@ -28,6 +28,15 @@ async def run_alert_worker() -> None:
     await alert_worker.run()
 
 
+async def _safe_tg_bridge():
+    try:
+        await run_tg_bridge()
+    except Exception as e:
+        print(f"[TELEGRAM-BRIDGE] 치명적 오류: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 async def run_all() -> None:
     api_config = uvicorn.Config(app, host=settings.api_host, port=settings.api_port, log_level="info")
     api_server = uvicorn.Server(api_config)
@@ -35,7 +44,7 @@ async def run_all() -> None:
         asyncio.create_task(api_server.serve()),
         asyncio.create_task(run_crawler()),
         asyncio.create_task(run_alert_worker()),
-        asyncio.create_task(run_tg_bridge()),      # [추가] 텔레그램 수집기
+        asyncio.create_task(_safe_tg_bridge()),
     ]
     try:
         await asyncio.gather(*tasks)

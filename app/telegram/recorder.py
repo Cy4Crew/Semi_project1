@@ -1,176 +1,163 @@
-import csv
+from __future__ import annotations
+
 import os
-import json
+import re
 from datetime import datetime
+from app.core.db import get_conn
+
+TELEGRAM_TEXT_DIR = "evidence/telegram_text"
 
 
-def _ensure_dir():
-    os.makedirs("data", exist_ok=True)
+def _execute(query, params):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+        conn.commit()
 
 
-_seen_per_channel: set[str] = set()
-
-
-def _is_duplicate(channel_name: str, data_type: str, value: str) -> bool:
-    key = f"{channel_name}::{data_type}::{value}"
-    if key in _seen_per_channel:
-        return True
-    _seen_per_channel.add(key)
-    return False
+def _execute_returning(query, params):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            row = cur.fetchone()
+        conn.commit()
+        return row
 
 
 def record_wallet(channel_name, coin_type, address, tags=None):
-    if _is_duplicate(channel_name, coin_type, address):
-        return
-
-    _ensure_dir()
-    file_path = "data/wallet_targets.csv"
-    file_exists = os.path.isfile(file_path)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     tag_str = ", ".join(tags) if tags else "NORMAL"
-
     try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["수집시간", "채널명", "코인유형", "지갑주소", "분석태그"])
-            writer.writerow([now, channel_name, coin_type, address, tag_str])
+        _execute(
+            """INSERT INTO tg_wallets (channel_name, coin_type, address, tags)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (channel_name, coin_type, address) DO NOTHING""",
+            (channel_name, coin_type, address, tag_str),
+        )
     except Exception as e:
         print(f"[!] 지갑 기록 실패: {e}")
 
 
 def record_btc_leaks(channel_name, btc_addresses, tags=None):
-    _ensure_dir()
-    file_path = "data/btc_targets.csv"
-    file_exists = os.path.isfile(file_path)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    tag_str = ", ".join(tags) if tags else "NORMAL"
-
-    try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["수집시간", "채널명", "분석태그", "비트코인_주소"])
-            for addr in btc_addresses:
-                if not _is_duplicate(channel_name, "BTC_legacy", addr):
-                    writer.writerow([now, channel_name, tag_str, addr])
-    except Exception as e:
-        print(f"[!] 기록 실패: {e}")
-
+    for addr in btc_addresses:
+        record_wallet(channel_name, "BTC", addr, tags=tags)
 
 
 def record_extracted_info(channel_name, data_type, value, source="chat"):
-    if _is_duplicate(channel_name, data_type, value):
-        return
-
-    _ensure_dir()
-    file_path = "data/extracted_info.csv"
-    file_exists = os.path.isfile(file_path)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["수집시간", "채널명", "데이터유형", "값", "출처"])
-            writer.writerow([now, channel_name, data_type, value, source])
+        _execute(
+            """INSERT INTO tg_extracted_info (channel_name, data_type, value, source)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (channel_name, data_type, value) DO NOTHING""",
+            (channel_name, data_type, value, source),
+        )
     except Exception as e:
         print(f"[!] 비-지갑 데이터 기록 실패: {e}")
 
 
-
 def record_raw_message(channel_name, channel_id, sender_id, sender_name,
                        message_id, text, timestamp, source="chat"):
-    _ensure_dir()
-    file_path = "data/raw_messages.csv"
-    file_exists = os.path.isfile(file_path)
+    msg_time = None
+    if timestamp:
+        if hasattr(timestamp, 'isoformat'):
+            msg_time = timestamp.isoformat()
+        else:
+            msg_time = str(timestamp)
 
     try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow([
-                    "수집시간", "채널명", "채널ID", "발신자ID",
-                    "발신자이름", "메시지ID", "내용", "원본시간", "출처"
-                ])
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            msg_time = timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else ""
-            writer.writerow([
-                now, channel_name, channel_id, sender_id,
-                sender_name, message_id, text, msg_time, source
-            ])
+        _execute(
+            """INSERT INTO tg_raw_messages
+                   (channel_name, channel_id, sender_id, sender_name,
+                    message_id, content, original_timestamp, source)
+               VALUES (%s, %s, %s, %s, %s, %s, %s::timestamptz, %s)
+               ON CONFLICT (channel_id, message_id) DO NOTHING""",
+            (channel_name, channel_id or None, sender_id or None,
+             sender_name, message_id, text, msg_time, source),
+        )
     except Exception as e:
         print(f"[!] 대화 원본 기록 실패: {e}")
 
+    _save_text_file(channel_name, channel_id, sender_name, message_id,
+                    text, msg_time, source)
+
+
+def _save_text_file(channel_name, channel_id, sender_name, message_id,
+                    text, msg_time, source):
+    try:
+        os.makedirs(TELEGRAM_TEXT_DIR, exist_ok=True)
+
+        safe_name = re.sub(r'[^\w\-]', '_', channel_name or "unknown")
+        filename = f"{safe_name}_{channel_id}.txt"
+        filepath = os.path.join(TELEGRAM_TEXT_DIR, filename)
+
+        timestamp_str = msg_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sender_str = sender_name or "Unknown"
+
+        with open(filepath, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp_str}] [{source}] {sender_str} (msg:{message_id})\n")
+            f.write(f"{text}\n")
+            f.write("-" * 40 + "\n")
+    except Exception as e:
+        print(f"[!] 텍스트 파일 저장 실패: {e}")
 
 
 def record_channel_info(channel_name, channel_id, admin_ids=None,
                         source_type="entered"):
-
-    _ensure_dir()
-    file_path = "data/channel_info.csv"
-    file_exists = os.path.isfile(file_path)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    admin_str = ", ".join(str(a) for a in admin_ids) if admin_ids else ""
-
     try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["수집시간", "채널명", "채널ID", "관리자IDs", "출처유형"])
-            writer.writerow([now, channel_name, channel_id, admin_str, source_type])
+        row = _execute_returning(
+            """INSERT INTO tg_channels (channel_name, channel_id, source_type)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (channel_id)
+               DO UPDATE SET channel_name = EXCLUDED.channel_name,
+                             source_type = EXCLUDED.source_type
+               RETURNING id""",
+            (channel_name, channel_id, source_type),
+        )
+        tg_channel_db_id = row["id"] if row else None
+
+        if tg_channel_db_id and admin_ids:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    for admin_id in admin_ids:
+                        cur.execute(
+                            """INSERT INTO tg_channel_admins (tg_channel_id, admin_user_id)
+                               VALUES (%s, %s)
+                               ON CONFLICT (tg_channel_id, admin_user_id) DO NOTHING""",
+                            (tg_channel_db_id, admin_id),
+                        )
+                conn.commit()
     except Exception as e:
         print(f"[!] 채널 정보 기록 실패: {e}")
 
 
-
 def record_private_channel(invite_link, channel_id=None, channel_name=None,
                            found_in_channel=None):
-
-    if _is_duplicate(found_in_channel or "global", "private_channel", invite_link):
-        return
-
-    _ensure_dir()
-    file_path = "data/private_channels.csv"
-    file_exists = os.path.isfile(file_path)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow([
-                    "수집시간", "초대링크", "채널ID", "채널이름",
-                    "발견된_채널"
-                ])
-            writer.writerow([
-                now, invite_link, channel_id or "", channel_name or "",
-                found_in_channel or ""
-            ])
+        _execute(
+            """INSERT INTO tg_private_channels
+                   (invite_link, channel_id, channel_name, found_in_channel)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (invite_link, found_in_channel) DO NOTHING""",
+            (invite_link, channel_id, channel_name, found_in_channel),
+        )
     except Exception as e:
         print(f"[!] 비공개 채널 기록 실패: {e}")
 
 
-
 def record_members(channel_name, channel_id, members):
-
-    _ensure_dir()
-    file_path = "data/members.csv"
-    file_exists = os.path.isfile(file_path)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     try:
-        with open(file_path, mode="a", encoding="utf-8-sig", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow([
-                    "수집시간", "채널명", "채널ID",
-                    "유저ID", "유저네임", "닉네임"
-                ])
-            for user_id, username, first_name in members:
-                writer.writerow([
-                    now, channel_name, channel_id,
-                    user_id, username or "", first_name or ""
-                ])
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                for user_id, username, first_name in members:
+                    cur.execute(
+                        """INSERT INTO tg_members
+                               (channel_name, channel_id, user_id, username, nickname)
+                           VALUES (%s, %s, %s, %s, %s)
+                           ON CONFLICT (channel_id, user_id)
+                           DO UPDATE SET username = EXCLUDED.username,
+                                         nickname = EXCLUDED.nickname""",
+                        (channel_name, channel_id, user_id,
+                         username or None, first_name or None),
+                    )
+            conn.commit()
     except Exception as e:
         print(f"[!] 멤버 정보 기록 실패: {e}")

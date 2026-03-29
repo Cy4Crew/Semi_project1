@@ -22,12 +22,11 @@ from app.telegram.recorder import record_raw_message
 from app.telegram.bot_handler import handle_bot_chat
 from app.core.db import get_conn
 
-
 TELEGRAM_COLLECTOR_API_ID = int(os.environ.get("TELEGRAM_COLLECTOR_API_ID", "0"))
 TELEGRAM_COLLECTOR_API_HASH = os.environ.get("TELEGRAM_COLLECTOR_API_HASH", "")
 TELEGRAM_COLLECTOR_SESSION = os.environ.get("TELEGRAM_COLLECTOR_SESSION", "")
 
-POLL_INTERVAL = 30
+POLL_INTERVAL = 180
 
 INVESTIGATED_FILE = "data/tg_investigated_channels.json"
 
@@ -48,23 +47,26 @@ def _save_investigated(channels: set[str]) -> None:
         json.dump(list(channels), f)
 
 
-
 def fetch_new_telegram_links(last_id: int) -> list[dict]:
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT ei.id, ei.normalized, ei.raw, ei.first_seen_at,
-                       p.url AS source_page
-                FROM extracted_items ei
-                JOIN pages p ON p.id = ei.page_id
-                WHERE ei.type = 'telegram' AND ei.id > %s
-                ORDER BY ei.id ASC
-                LIMIT 50
-                """,
-                (last_id,),
-            )
-            return list(cur.fetchall())
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT ei.id, ei.normalized, ei.raw, ei.first_seen_at,
+                           p.url AS source_page
+                    FROM extracted_items ei
+                    JOIN pages p ON p.id = ei.page_id
+                    WHERE ei.type = 'telegram' AND ei.id > %s
+                    ORDER BY ei.id ASC
+                    LIMIT 50
+                    """,
+                    (last_id,),
+                )
+                return list(cur.fetchall())
+    except Exception as e:
+        print(f"[TELEGRAM-BRIDGE] DB 조회 실패: {e}")
+        return []
 
 
 def parse_tg_link(normalized: str) -> tuple[str | None, bool]:
@@ -127,7 +129,6 @@ async def process_target(client: TelegramClient, target_id: str) -> None:
     await asyncio.sleep(2.0)
 
 
-
 _message_folders: dict[int, list] = {}
 
 
@@ -183,73 +184,78 @@ async def setup_live_monitor(client: TelegramClient) -> None:
             _message_folders[channel_id].append(event)
 
 
-
 async def run_bridge() -> None:
     if not TELEGRAM_COLLECTOR_API_ID or not TELEGRAM_COLLECTOR_API_HASH or not TELEGRAM_COLLECTOR_SESSION:
-        logger.error(
+        print(
             "[TELEGRAM-BRIDGE] TELEGRAM_COLLECTOR_API_ID, TELEGRAM_COLLECTOR_API_HASH, "
             "TELEGRAM_COLLECTOR_SESSION 환경변수가 필요합니다. .env 파일을 확인하세요."
         )
         return
 
-    client = TelegramClient(
-        StringSession(TELEGRAM_COLLECTOR_SESSION),
-        TELEGRAM_COLLECTOR_API_ID,
-        TELEGRAM_COLLECTOR_API_HASH,
-        device_model="Samsung Galaxy S23",
-        system_version="Android 14",
-        app_version="10.11.1",
-        lang_code="ko",
-        system_lang_code="ko-KR"
-    )
+    try:
+        client = TelegramClient(
+            StringSession(TELEGRAM_COLLECTOR_SESSION),
+            TELEGRAM_COLLECTOR_API_ID,
+            TELEGRAM_COLLECTOR_API_HASH,
+            device_model="Samsung Galaxy S23",
+            system_version="Android 14",
+            app_version="10.11.1",
+            lang_code="ko",
+            system_lang_code="ko-KR"
+        )
 
-    async with client:
-        await client.start()
-        me = await client.get_me()
-        print(f"[TELEGRAM-BRIDGE] 텔레그램 접속 성공! 계정명: {me.first_name}")
+        async with client:
+            await client.start()
+            me = await client.get_me()
+            print(f"[TELEGRAM-BRIDGE] 텔레그램 접속 성공! 계정명: {me.first_name}")
 
-        await setup_live_monitor(client)
+            await setup_live_monitor(client)
 
-        investigated = _load_investigated()
-        last_seen_id = 0
+            investigated = _load_investigated()
+            last_seen_id = 0
 
-        print(f"[TELEGRAM-BRIDGE] DB 폴링 시작 (간격: {POLL_INTERVAL}초)")
+            print(f"[TELEGRAM-BRIDGE] DB 폴링 시작 (간격: {POLL_INTERVAL}초)")
 
-        while True:
-            try:
-                new_links = fetch_new_telegram_links(last_seen_id)
+            while True:
+                try:
+                    new_links = fetch_new_telegram_links(last_seen_id)
 
-                for row in new_links:
-                    item_id = row["id"]
-                    normalized = row["normalized"]
-                    source_page = row.get("source_page", "unknown")
+                    for row in new_links:
+                        item_id = row["id"]
+                        normalized = row["normalized"]
+                        source_page = row.get("source_page", "unknown")
 
-                    if item_id > last_seen_id:
-                        last_seen_id = item_id
+                        if item_id > last_seen_id:
+                            last_seen_id = item_id
 
-                    username, is_private = parse_tg_link(normalized)
-                    if username is None:
-                        continue
+                        username, is_private = parse_tg_link(normalized)
+                        if username is None:
+                            continue
 
-                    if username in investigated:
-                        continue
+                        if username in investigated:
+                            continue
 
-                    print(f"[TELEGRAM-BRIDGE] 새 텔레그램 링크 발견: {normalized} "
-                          f"(출처: {source_page})")
+                        print(f"[TELEGRAM-BRIDGE] 새 텔레그램 링크 발견: {normalized} "
+                              f"(출처: {source_page})")
 
-                    if is_private:
-                        hash_part = username.lstrip('+')
-                        await resolve_private_invite(
-                            client, hash_part,
-                            found_in_channel=f"darkweb:{source_page}"
-                        )
-                    else:
-                        await process_target(client, username)
+                        if is_private:
+                            hash_part = username.lstrip('+')
+                            await resolve_private_invite(
+                                client, hash_part,
+                                found_in_channel=f"darkweb:{source_page}"
+                            )
+                        else:
+                            await process_target(client, username)
 
-                    investigated.add(username)
-                    _save_investigated(investigated)
+                        investigated.add(username)
+                        _save_investigated(investigated)
 
-            except Exception as e:
-                logger.error(f"[TELEGRAM-BRIDGE] 폴링 오류: {e}")
+                except Exception as e:
+                    print(f"[TELEGRAM-BRIDGE] 폴링 오류: {e}")
 
-            await asyncio.sleep(POLL_INTERVAL)
+                await asyncio.sleep(POLL_INTERVAL)
+
+    except Exception as e:
+        print(f"[TELEGRAM-BRIDGE] 브릿지 치명적 오류: {e}")
+        import traceback
+        traceback.print_exc()

@@ -1,3 +1,4 @@
+
 import asyncio
 import os
 import json
@@ -81,6 +82,7 @@ def _should_skip_button(text):
         return True
     return False
 
+
 async def handle_bot_chat(client, bot_entity):
     bot_id = bot_entity.id
     bot_name = getattr(bot_entity, 'first_name', None) or \
@@ -100,7 +102,7 @@ async def handle_bot_chat(client, bot_entity):
     print(f"[BOT] /start 전송 중...")
     sent_msg = await client.send_message(bot_entity, '/start')
     sent_id = sent_msg.id
-    await random_delay(1.5, 2.5)
+    await random_delay(0.5, 1.0)
 
     response = await _wait_for_bot_response(client, bot_entity, after_id=sent_id)
 
@@ -159,7 +161,7 @@ async def _explore_reply_keyboard(client, bot_entity, initial_response, bot_name
         print(f"[BOT] Reply Keyboard 선택: '{btn_text}'")
 
         sent = await client.send_message(bot_entity, btn_text)
-        await random_delay(1.5, 2.5)
+        await random_delay(0.5, 1.0)
 
         response = await _wait_for_bot_response(client, bot_entity, after_id=sent.id)
         if response is None:
@@ -182,7 +184,7 @@ async def _explore_reply_keyboard(client, bot_entity, initial_response, bot_name
 
             print(f"[BOT] Inline 탐색 완료. 다른 Reply Keyboard 메뉴 계속 탐색.")
             await _go_back(client, bot_entity, response)
-            await random_delay(1.0, 2.0)
+            await random_delay(0.3, 0.6)
 
 
 async def _explore_inline_keyboard(client, bot_entity, message, bot_name,
@@ -216,7 +218,7 @@ async def _explore_inline_keyboard(client, bot_entity, message, bot_name,
                 print(f"[BOT] 버튼 클릭 실패: {e}")
                 continue
 
-            await random_delay(1.5, 2.5)
+            await random_delay(0.5, 1.0)
 
             updated_msg = await _get_updated_message(client, bot_entity, message.id)
             if updated_msg is None:
@@ -240,7 +242,7 @@ async def _explore_inline_keyboard(client, bot_entity, message, bot_name,
             if len(new_addrs) == 1:
                 print(f"[BOT] 지갑 주소 1개 발견. back 후 다른 코인 탐색.")
                 await _go_back_inline(client, bot_entity, updated_msg)
-                await random_delay(1.0, 2.0)
+                await random_delay(0.3, 0.6)
                 refreshed = await _get_updated_message(client, bot_entity, message.id)
                 if refreshed is not None:
                     message = refreshed
@@ -255,7 +257,7 @@ async def _explore_inline_keyboard(client, bot_entity, message, bot_name,
                     return True
 
             await _go_back_inline(client, bot_entity, updated_msg)
-            await random_delay(1.0, 2.0)
+            await random_delay(0.3, 0.6)
             refreshed = await _get_updated_message(client, bot_entity, message.id)
             if refreshed is not None:
                 message = refreshed
@@ -396,12 +398,12 @@ async def _go_back(client, bot_entity, current_response):
         if _is_back_button(text):
             print(f"[BOT] Back 버튼 선택: '{text}'")
             await client.send_message(bot_entity, text)
-            await random_delay(1.5, 2.5)
+            await random_delay(0.5, 1.0)
             return
 
     print(f"[BOT] Back 버튼 없음. /start 재전송.")
     await client.send_message(bot_entity, '/start')
-    await random_delay(1.5, 2.5)
+    await random_delay(0.5, 1.0)
 
 
 async def _go_back_inline(client, bot_entity, message):
@@ -411,11 +413,11 @@ async def _go_back_inline(client, bot_entity, message):
             print(f"[BOT] Inline Back 버튼 클릭: '{text}'")
             try:
                 await message.click(data=data)
-                await random_delay(1.5, 2.5)
+                await random_delay(0.5, 1.0)
                 return
             except Exception as e:
                 print(f"[BOT] Back 버튼 클릭 실패: {e}")
 
     print(f"[BOT] Inline Back 버튼 없음. /start 재전송.")
     await client.send_message(bot_entity, '/start')
-    await random_delay(1.5, 2.5)
+    await random_delay(0.5, 1.0)

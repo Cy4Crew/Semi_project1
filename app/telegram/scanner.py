@@ -155,7 +155,7 @@ def extract_all_info(text, channel_name, source="chat"):
     }
 
 
-async def random_delay(min_sec=1.0, max_sec=2.0):
+async def random_delay(min_sec=0.3, max_sec=0.6):
     await asyncio.sleep(random.uniform(min_sec, max_sec))
 
 
@@ -308,7 +308,7 @@ async def scrape_channel(client, channel_entity, limit=100, _visited_ids=None):
             all_messages.append(message)
             if message.id > new_last_id:
                 new_last_id = message.id
-            await random_delay(0.8, 1.2)
+            await random_delay(0.3, 0.6)
 
         if not all_messages:
             print("[*] 새로 올라온 메시지가 없습니다.")
@@ -325,7 +325,7 @@ async def scrape_channel(client, channel_entity, limit=100, _visited_ids=None):
 
                     await _resolve_private_links(client, actual_text, channel_name)
 
-                await random_delay(0.8, 1.2)
+                await random_delay(0.3, 0.6)
 
             if linked_chat_id:
                 await _scrape_reply_threads(client, channel_entity, channel_name,
@@ -378,7 +378,7 @@ async def _resolve_private_links(client, text, found_in_channel):
     hashes = re.findall(TG_PRIVATE_PATTERN, text)
     for h in hashes:
         await resolve_private_invite(client, h, found_in_channel=found_in_channel)
-        await random_delay(0.8, 1.2)
+        await random_delay(0.3, 0.6)
 
 
 async def _scrape_reply_threads(client, channel_entity, channel_name,
@@ -403,7 +403,7 @@ async def _scrape_reply_threads(client, channel_entity, channel_name,
                             await _resolve_private_links(
                                 client, reply_text, channel_name
                             )
-                await random_delay(0.8, 1.2)
+                await random_delay(0.3, 0.6)
 
             if reply_count > 0:
                 print(f"[*] 게시물 {message.id}의 댓글 {reply_count}개 수집 완료")
@@ -492,7 +492,7 @@ async def _explore_discovered_channels(client, tg_links, found_in_channel, _visi
         except Exception as e:
             print(f"[!] '@{username}' 탐색 실패: {e}")
 
-        await random_delay(1.5, 2.5)
+        await random_delay(0.5, 1.0)
 
     print(f"[+] '{found_in_channel}' 발견 채널 탐색 완료.")
 
