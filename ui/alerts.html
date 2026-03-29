@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Alerts</title>
+  <link rel="stylesheet" href="./assets/styles.css" />
+</head>
+<body>
+<script src="./assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'alerts',
+  heroEyebrow: 'Delivery Monitoring',
+  heroTitle: 'Alerts Console',
+  heroDesc: '알림 채널, 상태, 실패 메시지를 릍 통해 전송 현황을 확인한다.',
+  heroMeta: ['채널 상태 분리', '실패 메시지 노출', '재검토 페이지'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Alert Filters</div>
+    <label class="field-label" for="statusFilter">Status</label>
+    <select id="statusFilter" class="control"><option value="">전체</option></select>
+    <label class="field-label" for="channelFilter">Channel</label>
+    <select id="channelFilter" class="control"><option value="">전체</option></select>
+    <label class="field-label" for="searchBox">검색</label>
+    <input id="searchBox" class="control" type="text" placeholder="matched / URL / error" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="grid-3" id="alertStats"></section>
+
+    <style>
+      .alerts-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .alerts-top-actions .control,
+      .alerts-top-actions .pill {
+        width: auto;
+        min-width: 0;
+        padding: 8px 12px;
+        font-size: 12px;
+        border-radius: 12px;
+        line-height: 1.2;
+      }
+
+      .alerts-top-actions .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      @media (max-width: 700px) {
+        .alerts-top-actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+      }
+    </style>
+
+    <section class="split">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Recent Alerts</div>
+            <div class="panel-sub">전송 이력과 실패 메시지 확인</div>
+          </div>
+
+          <div class="alerts-top-actions pagination">
+            <button class="control" id="prevBtnTop" type="button">Prev</button>
+            <button class="control" id="nextBtnTop" type="button">Next</button>
+            <span class="pill" id="alertCountPill">0 rows</span>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Matched</th>
+                <th>Created</th>
+                <th>Sent</th>
+              </tr>
+            </thead>
+            <tbody id="alertsBody"></tbody>
+          </table>
+          <div class="empty hidden" id="alertsEmpty">표시할 알림이 없다.</div>
+        </div>
+
+        <div class="pagination">
+          <button class="control" id="prevBtn" type="button">Prev</button>
+          <span class="pill" id="pagePill">Page 1</span>
+          <button class="control" id="nextBtn" type="button">Next</button>
+        </div>
+      </section>
+
+      <aside class="detail-card">
+        <div class="card-title">Alert Detail</div>
+        <div id="detailBox" class="mini-desc">알림 행을 선택하면 상세 정보가 나타난다.</div>
+      </aside>
+    </section>`
+});
+
+const state = {
+  page: 1,
+  rows: [],
+  selected: null
+};
+
+function filteredRows() {
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  const status = document.getElementById('statusFilter').value.trim().toLowerCase();
+  const channel = document.getElementById('channelFilter').value.trim().toLowerCase();
+
+  return state.rows.filter(r => {
+    const statusOk = !status || String(r.status || '').toLowerCase() === status;
+    const channelOk = !channel || String(r.channel || '').toLowerCase() === channel;
+    const joined = [
+      r.matched_value,
+      r.url,
+      r.error_message,
+      r.channel,
+      r.status
+    ].map(v => String(v || '').toLowerCase()).join(' ');
+
+    return statusOk && channelOk && (!q || joined.includes(q));
+  });
+}
+
+function renderStats() {
+  const byStatus = countBy(state.rows, 'status');
+  const byChannel = countBy(state.rows, 'channel');
+
+  renderMetricCards(document.getElementById('alertStats'), [
+    { label: 'Loaded', value: state.rows.length, foot: '현재 페이지 로드 수' },
+    { label: 'Sent', value: byStatus.sent || 0, foot: 'status=sent' },
+    { label: 'Failed', value: byStatus.failed || 0, foot: 'status=failed' },
+    { label: 'Top Channel', value: topEntries(byChannel, 1)[0]?.[0] || '-', foot: '최근 페이지 기준' },
+    { label: 'Pending', value: byStatus.pending || 0, foot: '아직 미전송 상태' },
+  ]);
+}
+
+function renderDetail(row) {
+  const detailBox = document.getElementById('detailBox');
+
+  if (!row) {
+    detailBox.innerHTML = '알림 행을 선택하면 상세 정보가 나타난다.';
+    return;
+  }
+
+  detailBox.innerHTML = `
+    <div class="detail-title">Alert #${escapeHtml(row.id)}</div>
+    <div class="detail-meta">
+      <div class="meta-row">
+        <div class="meta-label">Status</div>
+        <div><span class="badge ${pickStatusClass(row.status)}">${escapeHtml(row.status || '-')}</span></div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Channel</div>
+        <div>${escapeHtml(row.channel || '-')}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Matched</div>
+        <div>${escapeHtml(row.matched_value || '-')}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Created</div>
+        <div>${escapeHtml(fmtDate(row.created_at))}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Sent</div>
+        <div>${escapeHtml(fmtDate(row.sent_at))}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Error Message</div>
+        <div class="pre">${escapeHtml(row.error_message || '-')}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">URL</div>
+        <div>
+          ${row.url ? `<a class="link" target="_blank" href="${escapeHtml(row.url)}">${escapeHtml(row.url)}</a>` : '-'}
+        </div>
+      </div>
+    </div>
+    <div class="detail-cta">
+      <a class="btn primary" href="/ui/investigation.html?hit=${encodeURIComponent(row.hit_id)}">Open Investigation</a>
+    </div>`;
+}
+
+function renderTable() {
+  const rows = filteredRows();
+
+  document.getElementById('alertCountPill').textContent = `${rows.length} rows`;
+  document.getElementById('pagePill').textContent = `Page ${state.page}`;
+
+  document.getElementById('alertsBody').innerHTML = rows.map(r => `
+    <tr class="clickable ${state.selected && state.selected.id === r.id ? 'highlight' : ''}" data-id="${escapeHtml(r.id)}">
+      <td>${escapeHtml(r.id)}</td>
+      <td>${escapeHtml(r.channel || '-')}</td>
+      <td><span class="badge ${pickStatusClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
+      <td>${escapeHtml(r.matched_value || '-')}</td>
+      <td>${escapeHtml(fmtDate(r.created_at))}</td>
+      <td>${escapeHtml(fmtDate(r.sent_at))}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('alertsEmpty').classList.toggle('hidden', rows.length !== 0);
+
+  const prevDisabled = state.page <= 1;
+  const nextDisabled = state.rows.length < PAGE_SIZE;
+
+  document.getElementById('prevBtn').disabled = prevDisabled;
+  document.getElementById('nextBtn').disabled = nextDisabled;
+  document.getElementById('prevBtnTop').disabled = prevDisabled;
+  document.getElementById('nextBtnTop').disabled = nextDisabled;
+
+  Array.from(document.querySelectorAll('#alertsBody tr')).forEach(tr => {
+    tr.addEventListener('click', () => {
+      state.selected = state.rows.find(x => String(x.id) === tr.dataset.id) || null;
+      renderTable();
+      renderDetail(state.selected);
+    });
+  });
+}
+
+async function loadAlerts() {
+  state.rows = await getJson(API.alerts(state.page, PAGE_SIZE));
+
+  fillSelect(document.getElementById('statusFilter'), uniqueValues(state.rows, 'status'));
+  fillSelect(document.getElementById('channelFilter'), uniqueValues(state.rows, 'channel'));
+
+  renderStats();
+  renderTable();
+
+  if (!state.selected && state.rows[0]) {
+    state.selected = state.rows[0];
+    renderDetail(state.selected);
+    renderTable();
+  }
+}
+
+['statusFilter', 'channelFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderTable);
+});
+
+document.getElementById('searchBox').addEventListener('input', renderTable);
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (state.page > 1) {
+    state.page -= 1;
+    guardedLoad(loadAlerts);
+  }
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (state.rows.length === PAGE_SIZE) {
+    state.page += 1;
+    guardedLoad(loadAlerts);
+  }
+});
+
+document.getElementById('prevBtnTop').addEventListener('click', () => {
+  document.getElementById('prevBtn').click();
+});
+
+document.getElementById('nextBtnTop').addEventListener('click', () => {
+  document.getElementById('nextBtn').click();
+});
+
+attachRefresh(() => guardedLoad(loadAlerts));
+guardedLoad(loadAlerts);
+</script>
+</body>
+</html>

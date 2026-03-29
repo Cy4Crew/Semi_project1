@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Watchlist</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'watchlist',
+  heroEyebrow: 'Detection Rules',
+  heroTitle: 'Watchlist Explorer',
+  heroDesc: '타입 분포, regex 비중, 최근 히트 연결 상태를 보여준다.',
+  heroMeta: ['rules 분포', 'regex 구분', 'hit 연결'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Watchlist Filters</div>
+    <label class="field-label" for="typeFilter">Type</label>
+    <select id="typeFilter" class="control"><option value="">전체</option></select>
+    <label class="field-label" for="regexFilter">Regex</label>
+    <select id="regexFilter" class="control"><option value="">전체</option><option value="true">regex</option><option value="false">literal</option></select>
+    <label class="field-label" for="searchBox">검색</label>
+    <input id="searchBox" class="control" type="text" placeholder="value / label / normalized" />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <section class="grid-2">
+      <section class="panel">
+        <div class="panel-head"><div><div class="panel-title">Rule Distribution</div><div class="panel-sub">최근 전체 규칙 기준 타입 분포</div></div></div>
+        <div class="chart-card"><div class="chart-title">Watchlist Types</div><div class="chart-box"><canvas id="typeChart" width="520" height="280"></canvas></div></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><div class="panel-title">Rule Pulse</div><div class="panel-sub">검토에 필요한 핵심 수치</div></div></div>
+        <div class="pulse-list" id="pulseList"></div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Watchlist Items</div>
+          <div class="panel-sub">최근 hit와 연결된 규칙도 같이 표시</div>
+        </div>
+        <span class="pill" id="countPill">0 rows</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Type</th><th>Label</th><th>Value</th><th>Normalized</th><th>Mode</th><th>Recent Hits</th></tr>
+          </thead>
+          <tbody id="watchBody"></tbody>
+        </table>
+        <div class="empty hidden" id="emptyBox">표시할 워치리스트가 없다.</div>
+      </div>
+    </section>`
+});
+
+let watchlist = [], hits = [];
+
+function filteredRows() {
+  const type = document.getElementById('typeFilter').value.trim().toLowerCase();
+  const regex = document.getElementById('regexFilter').value.trim().toLowerCase();
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  return watchlist.filter(r => {
+    const typeOk = !type || String(r.type || '').toLowerCase() === type;
+    const regexOk = !regex || String(!!r.is_regex) === regex;
+    const joined = [r.type, r.value, r.label, r.normalized].map(v => String(v || '').toLowerCase()).join(' ');
+    return typeOk && regexOk && (!q || joined.includes(q));
+  });
+}
+
+function hitCountFor(watchId) { return hits.filter(h => String(h.watchlist_id) === String(watchId)).length; }
+
+function render() {
+  const list = filteredRows();
+  document.getElementById('countPill').textContent = `${list.length} rows`;
+  const typeCounts = countBy(watchlist, 'type');
+  const labels = Object.keys(typeCounts).length ? Object.keys(typeCounts) : ['No data'];
+  const values = Object.values(typeCounts).length ? Object.values(typeCounts) : [0];
+  drawBars('typeChart', labels, values, [
+    ['#5ad1ff', '#5679ff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b'], ['#9d8bff', '#5f6bff'], ['#71e5ff', '#3fb4ff']
+  ]);
+  const regexCount = watchlist.filter(x => x.is_regex).length;
+  const hitConnected = new Set(hits.map(h => String(h.watchlist_id))).size;
+  document.getElementById('pulseList').innerHTML = `
+    <div class="pulse"><div class="pulse-kicker">Rules</div><div class="pulse-value">${watchlist.length}</div><div class="pulse-desc">전체 워치리스트 수</div></div>
+    <div class="pulse"><div class="pulse-kicker">Regex</div><div class="pulse-value">${regexCount}</div><div class="pulse-desc">정규식 기반 규칙</div></div>
+    <div class="pulse"><div class="pulse-kicker">Hit Connected</div><div class="pulse-value">${hitConnected}</div><div class="pulse-desc">최근 hit와 연결된 규칙</div></div>
+  `;
+  document.getElementById('watchBody').innerHTML = list.map(r => `
+    <tr>
+      <td>${escapeHtml(r.id)}</td>
+      <td><span class="badge type">${escapeHtml(r.type || '-')}</span></td>
+      <td>${escapeHtml(r.label || '-')}</td>
+      <td>${escapeHtml(r.value || '-')}</td>
+      <td class="small">${escapeHtml(r.normalized || '-')}</td>
+      <td><span class="badge ${r.is_regex ? 'warn' : 'info'}">${r.is_regex ? 'regex' : 'literal'}</span></td>
+      <td>${hitCountFor(r.id)}</td>
+    </tr>`).join('');
+  document.getElementById('emptyBox').classList.toggle('hidden', list.length !== 0);
+}
+
+async function loadWatchlist() {
+  const [w, h] = await Promise.all([getJson(API.watchlist), getJson(API.hits(1, 100))]);
+  watchlist = w; hits = h;
+  fillSelect(document.getElementById('typeFilter'), uniqueValues(watchlist, 'type'));
+  render();
+}
+
+['typeFilter','regexFilter'].forEach(id => document.getElementById(id).addEventListener('change', render));
+document.getElementById('searchBox').addEventListener('input', render);
+attachRefresh(() => guardedLoad(loadWatchlist));
+window.addEventListener('resize', render);
+guardedLoad(loadWatchlist);
+</script>
+</body>
+</html>
