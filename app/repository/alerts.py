@@ -45,7 +45,7 @@ def create_alert_if_not_exists(
     return int(row[0])
 
 
-def list_recent_alerts(conn, limit: int = 100) -> list[dict[str, Any]]:
+def list_recent_alerts(conn, limit: int = 100, offset: int = 0):
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -56,9 +56,9 @@ def list_recent_alerts(conn, limit: int = 100) -> list[dict[str, Any]]:
             JOIN pages p ON p.id = h.page_id
             WHERE a.channel != 'stdout'
             ORDER BY a.id DESC
-            LIMIT %s
+            LIMIT %s OFFSET %s
             """,
-            (limit,),
+            (limit, offset),
         )
         return list(cur.fetchall())
 
