@@ -13,13 +13,13 @@ installPage({
   pageKey: 'overview',
   heroEyebrow: 'Enterprise Dashboard',
   heroTitle: 'Operations Overview',
-  heroDesc: '기존 메인 대시보드를 유지하면서, 읽기 전용 분석 페이지를 분리한 전체 콘솔이다. 여기서는 전체 규모와 최신 이상 징후를 빠르게 확인한다.',
+  heroDesc: '전체 규모와 이상 징후를 한눈에 확인하는 분석 화면.',
   heroMeta: ['기본 골조 유지', '멀티 페이지 분리', '그래프/분석 추가', 'theme toggle'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
     <div class="card-title">Quick Notes</div>
     <div class="list-tight">
-      <div class="mini-desc">Overview는 전체 상황 확인용이다.</div>
+      <div class="mini-desc">Overview는 전체 상황 확인용.</div>
       <div class="mini-desc">세부 판정은 Investigation에서 한다.</div>
       <div class="mini-desc">알림 신뢰성은 Alerts에서 본다.</div>
     </div>`,
@@ -108,34 +108,33 @@ installPage({
       </div>
       <div class="timeline" id="timeline"></div>
       <div class="empty hidden" id="timelineEmpty">표시할 페이지 이벤트가 없다.</div>
-        </section>
+    </section>
 
-    <section class="grid-2">
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">Next Views</div>
-            <div class="panel-sub">이번에 추가된 관계 그래프와 분석 화면</div>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Next Views</div>
+          <div class="panel-sub">이번에 추가된 관계 그래프와 분석 화면</div>
+        </div>
+      </div>
+      <div class="kv-grid">
+        <div class="kv">
+          <div class="mini-kicker">Graph</div>
+          <div class="num">IOC</div>
+          <div class="mini-desc">같은 URL·같은 target 관계를 그래프로 본다.</div>
+          <div class="detail-cta">
+            <a class="btn primary" href="/ui/graph.html">Open Graph</a>
           </div>
         </div>
-        <div class="kv-grid">
-          <div class="kv"><div class="mini-kicker">Graph</div><div class="num">IOC</div><div class="mini-desc">같은 URL·같은 target 관계를 그래프로 본다.</div><div class="detail-cta"><a class="btn primary" href="/ui/graph.html">Open Graph</a></div></div>
-          <div class="kv"><div class="mini-kicker">Analytics</div><div class="num">Stats</div><div class="mini-desc">반복 IOC와 target load를 차트로 본다.</div><div class="detail-cta"><a class="btn primary" href="/ui/analytics.html">Open Analytics</a></div></div>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">Operator Notes</div>
-            <div class="panel-sub">이번 버전에서 바뀐 점</div>
+        <div class="kv">
+          <div class="mini-kicker">Analytics</div>
+          <div class="num">Stats</div>
+          <div class="mini-desc">반복 IOC와 target load를 차트로 본다.</div>
+          <div class="detail-cta">
+            <a class="btn primary" href="/ui/analytics.html">Open Analytics</a>
           </div>
         </div>
-        <div class="stack">
-          <div class="list-item"><div class="mini-kicker">Theme</div><div class="mini-desc">상단 토글로 Dark / Light 전환, localStorage 유지</div></div>
-          <div class="list-item"><div class="mini-kicker">Hits Flow</div><div class="mini-desc">행 클릭은 Investigation 이동, VIEW는 현재 페이지 요약</div></div>
-          <div class="list-item"><div class="mini-kicker">Priority</div><div class="mini-desc">NEW / REPEATED / MULTI / TARGET 배지로 우선순위 표시</div></div>
-        </div>
-      </section>
+      </div>
     </section>`
 });
 
@@ -158,19 +157,45 @@ async function loadOverview() {
   ]);
 
   const hitCounts = countBy(hits, 'watch_type');
-  drawBars('summaryChart', ['Targets','Pages','Extracted','Hits','Alerts'], [Number(summary.targets||0), Number(summary.pages||0), Number(summary.extracted||0), Number(summary.hits||0), Number(summary.alerts||0)], [
-    ['#5ad1ff', '#5679ff'], ['#6ae7ff', '#5679ff'], ['#56a3ff', '#7b6dff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b']
-  ]);
+  drawBars(
+    'summaryChart',
+    ['Targets','Pages','Extracted','Hits','Alerts'],
+    [
+      Number(summary.targets || 0),
+      Number(summary.pages || 0),
+      Number(summary.extracted || 0),
+      Number(summary.hits || 0),
+      Number(summary.alerts || 0)
+    ],
+    [
+      ['#5ad1ff', '#5679ff'],
+      ['#6ae7ff', '#5679ff'],
+      ['#56a3ff', '#7b6dff'],
+      ['#5bf0bf', '#2fd187'],
+      ['#ffbe5c', '#ff8a5b']
+    ]
+  );
+
   const labels = Object.keys(hitCounts).length ? Object.keys(hitCounts) : ['No data'];
   const values = Object.values(hitCounts).length ? Object.values(hitCounts) : [0];
-  drawBars('hitTypeChart', labels, values, [
-    ['#5ad1ff', '#5679ff'], ['#5bf0bf', '#2fd187'], ['#ffbe5c', '#ff8a5b'], ['#9d8bff', '#5f6bff'], ['#71e5ff', '#3fb4ff']
-  ]);
+  drawBars(
+    'hitTypeChart',
+    labels,
+    values,
+    [
+      ['#5ad1ff', '#5679ff'],
+      ['#5bf0bf', '#2fd187'],
+      ['#ffbe5c', '#ff8a5b'],
+      ['#9d8bff', '#5f6bff'],
+      ['#71e5ff', '#3fb4ff']
+    ]
+  );
 
   const queued = targets.filter(t => t.is_queued).length;
   const neverFetched = targets.filter(t => !t.last_fetched_at).length;
   const regexCount = watchlist.filter(w => w.is_regex).length;
   const failedAlerts = alerts.filter(a => pickStatusClass(a.status) === 'fail').length;
+
   document.getElementById('pulseList').innerHTML = `
     <div class="pulse"><div class="pulse-kicker">Queue</div><div class="pulse-value">${queued}</div><div class="pulse-desc">현재 queued 상태인 타겟 수</div></div>
     <div class="pulse"><div class="pulse-kicker">Never Fetched</div><div class="pulse-value">${neverFetched}</div><div class="pulse-desc">아직 한 번도 수집되지 않은 타겟</div></div>
@@ -198,7 +223,10 @@ async function loadOverview() {
     </tr>`).join('');
   document.getElementById('alertsEmpty').classList.toggle('hidden', alerts.length !== 0);
 
-  const timelineRows = pages.filter(p => p.content_changed || p.error_message || (p.status_code && Number(p.status_code) >= 400)).slice(0, 10);
+  const timelineRows = pages
+    .filter(p => p.content_changed || p.error_message || (p.status_code && Number(p.status_code) >= 400))
+    .slice(0, 10);
+
   document.getElementById('timeline').innerHTML = timelineRows.map(p => `
     <div class="timeline-item ${p.content_changed ? 'highlight' : ''}">
       <div class="timeline-top">
@@ -206,7 +234,9 @@ async function loadOverview() {
           <div class="mini-kicker">${escapeHtml(p.target_name || p.host || 'unknown target')}</div>
           <div><a class="link" href="/ui/pages.html#page-${escapeHtml(p.id)}">${escapeHtml(p.title || p.url || '-')}</a></div>
         </div>
-        <span class="badge ${p.error_message || (p.status_code && Number(p.status_code) >= 400) ? 'fail' : 'info'}">${p.error_message ? 'error' : (p.content_changed ? 'changed' : 'recent')}</span>
+        <span class="badge ${p.error_message || (p.status_code && Number(p.status_code) >= 400) ? 'fail' : 'info'}">
+          ${p.error_message ? 'error' : (p.content_changed ? 'changed' : 'recent')}
+        </span>
       </div>
       <div class="mini-desc">Fetched ${escapeHtml(fmtDate(p.fetched_at))} · Status ${escapeHtml(p.status_code ?? '-')} · ${p.content_changed ? 'content changed' : 'no change flag'}</div>
       <div class="evidence-links">${evidenceLinks(p)}</div>

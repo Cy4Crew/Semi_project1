@@ -13,7 +13,7 @@ installPage({
   pageKey: 'targets',
   heroEyebrow: 'Collection Coverage',
   heroTitle: 'Targets Overview',
-  heroDesc: '타겟 페이지는 수정 버튼 없이도 운영 판단이 가능해야 한다. queued 여부, 마지막 큐잉, 마지막 수집, seed URL을 분리해서 상태를 읽기 쉽게 만들었다.',
+  heroDesc: '수정 없이도 현재 상태를 바로 확인할 수 있도록 주요 정보를 구분해 보여주는 관리 화면.',
   heroMeta: ['queue 가시성', 'last fetched 점검', 'seed URL 확인'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -26,15 +26,60 @@ installPage({
     <input id="searchBox" class="control" type="text" placeholder="name / seed_url" />`,
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
+
+    <style>
+      .targets-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: auto;
+      }
+
+      .targets-top-actions .control,
+      .targets-top-actions .pill {
+        width: auto;
+        min-width: 0;
+      }
+
+      .targets-top-actions select.control {
+        min-width: 84px;
+      }
+
+      @media (max-width: 700px) {
+        .targets-top-actions {
+          width: 100%;
+          justify-content: flex-start;
+          margin-left: 0;
+          
+        }
+      }
+    </style>
+
     <section class="grid-3" id="targetStats"></section>
+
     <section class="panel">
       <div class="panel-head">
         <div>
           <div class="panel-title">Registered Targets</div>
           <div class="panel-sub">읽기 전용 상태 점검 화면</div>
         </div>
-        <span class="pill" id="targetCountPill">0 rows</span>
+
+        <div class="targets-top-actions pagination">
+          <button class="control" id="prevBtnTop" type="button">Prev</button>
+          <span class="pill" id="pagePillTop">Page 1 / 1</span>
+          <button class="control" id="nextBtnTop" type="button">Next</button>
+          <select id="pageSizeSelect" class="control" title="rows per page">
+            <option value="10">10 rows</option>
+            <option value="30" selected>30 rows</option>
+            <option value="50">50 rows</option>
+            <option value="100">100 rows</option>
+            <option value="120">120 rows</option>
+          </select>
+          <span class="pill" id="targetCountPill">0 rows</span>
+        </div>
       </div>
+
       <div class="table-wrap">
         <table>
           <thead>
@@ -44,15 +89,24 @@ installPage({
         </table>
         <div class="empty hidden" id="targetsEmpty">표시할 타겟이 없다.</div>
       </div>
+
+      <div class="pagination">
+        <button class="control" id="prevBtn" type="button">Prev</button>
+        <span class="pill" id="pagePill">Page 1 / 1</span>
+        <button class="control" id="nextBtn" type="button">Next</button>
+      </div>
     </section>`
 });
 
 let rows = [];
+let currentPage = 1;
+let pageSize = 30;
 
 function filteredRows() {
   const enabled = document.getElementById('enabledFilter').value.trim().toLowerCase();
   const queue = document.getElementById('queueFilter').value.trim().toLowerCase();
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
+
   return rows.filter(r => {
     const enabledOk = !enabled || String(!!r.enabled) === enabled;
     const queueState = !r.last_fetched_at ? 'never' : (r.is_queued ? 'queued' : 'idle');
@@ -62,11 +116,39 @@ function filteredRows() {
   });
 }
 
+function pagedRows(list) {
+  const start = (currentPage - 1) * pageSize;
+  return list.slice(start, start + pageSize);
+}
+
+function totalPages(list) {
+  return Math.max(1, Math.ceil(list.length / pageSize));
+}
+
+function syncPageState(list) {
+  const total = totalPages(list);
+  if (currentPage > total) currentPage = total;
+  if (currentPage < 1) currentPage = 1;
+
+  const label = `Page ${currentPage} / ${total}`;
+  document.getElementById('pagePill').textContent = label;
+  document.getElementById('pagePillTop').textContent = label;
+
+  const prevDisabled = currentPage <= 1;
+  const nextDisabled = currentPage >= total;
+
+  document.getElementById('prevBtn').disabled = prevDisabled;
+  document.getElementById('prevBtnTop').disabled = prevDisabled;
+  document.getElementById('nextBtn').disabled = nextDisabled;
+  document.getElementById('nextBtnTop').disabled = nextDisabled;
+}
+
 function renderStats() {
   const enabledCount = rows.filter(r => r.enabled).length;
   const queuedCount = rows.filter(r => r.is_queued).length;
   const neverCount = rows.filter(r => !r.last_fetched_at).length;
   const fetchedCount = rows.filter(r => !!r.last_fetched_at).length;
+
   renderMetricCards(document.getElementById('targetStats'), [
     { label: 'Targets', value: rows.length, foot: '총 등록 수' },
     { label: 'Enabled', value: enabledCount, foot: 'enabled=true' },
@@ -78,8 +160,12 @@ function renderStats() {
 
 function renderTable() {
   const list = filteredRows();
-  document.getElementById('targetCountPill').textContent = `${list.length} rows`;
-  document.getElementById('targetsBody').innerHTML = list.map(r => {
+  syncPageState(list);
+
+  const visible = pagedRows(list);
+
+  document.getElementById('targetCountPill').textContent = `totals ${list.length}`;
+  document.getElementById('targetsBody').innerHTML = visible.map(r => {
     const queueState = !r.last_fetched_at ? 'never' : (r.is_queued ? 'queued' : 'idle');
     return `
       <tr>
@@ -92,7 +178,8 @@ function renderTable() {
         <td>${escapeHtml(fmtDate(r.last_fetched_at))}<div class="small muted">${escapeHtml(fmtAgo(r.last_fetched_at))}</div></td>
       </tr>`;
   }).join('');
-  document.getElementById('targetsEmpty').classList.toggle('hidden', list.length !== 0);
+
+  document.getElementById('targetsEmpty').classList.toggle('hidden', visible.length !== 0);
 }
 
 async function loadTargets() {
@@ -101,8 +188,46 @@ async function loadTargets() {
   renderTable();
 }
 
-['enabledFilter','queueFilter'].forEach(id => document.getElementById(id).addEventListener('change', renderTable));
-document.getElementById('searchBox').addEventListener('input', renderTable);
+function resetToFirstPage() {
+  currentPage = 1;
+  renderTable();
+}
+
+['enabledFilter', 'queueFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', resetToFirstPage);
+});
+
+document.getElementById('searchBox').addEventListener('input', resetToFirstPage);
+
+document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+  pageSize = Number(e.target.value) || 30;
+  currentPage = 1;
+  renderTable();
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage -= 1;
+    renderTable();
+  }
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  const total = totalPages(filteredRows());
+  if (currentPage < total) {
+    currentPage += 1;
+    renderTable();
+  }
+});
+
+document.getElementById('prevBtnTop').addEventListener('click', () => {
+  document.getElementById('prevBtn').click();
+});
+
+document.getElementById('nextBtnTop').addEventListener('click', () => {
+  document.getElementById('nextBtn').click();
+});
+
 attachRefresh(() => guardedLoad(loadTargets));
 guardedLoad(loadTargets);
 </script>

@@ -83,7 +83,7 @@ html, body {
 .btn.primary { border: none; background: linear-gradient(135deg, var(--blue), var(--indigo)); box-shadow: 0 18px 34px rgba(86, 163, 255, .22) }
 .btn.ghost { background: rgba(255,255,255,.03) }
 .status-card, .filter-card, .detail-card {
-  margin-top: 14px; padding: 16px; border-radius: 22px; border: 1px solid var(--line); background: rgba(255,255,255,.03)
+  margin-top: 0px; padding: 16px; border-radius: 22px; border: 1px solid var(--line); background: rgba(255,255,255,.03)
 }
 .card-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #d9e5ff; font-weight: 900; margin-bottom: 12px }
 .status-row { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin: 8px 0 }
@@ -243,10 +243,10 @@ tbody tr.clickable { cursor: pointer }
 .section-card {
   border:1px solid var(--line); background: rgba(255,255,255,.03); border-radius:18px; padding:14px;
 }
-.section-title { font-size:13px; font-weight:900; letter-spacing:.04em; color:#dce6ff; margin-bottom:10px; text-transform: uppercase; }
+.section-title { font-size:13px; font-weight:900; letter-spacing:.04em; color:#0345ee; margin-bottom:10px; text-transform: uppercase; }
 .info-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:10px; }
 .info-item { border:1px solid var(--line); background: rgba(255,255,255,.025); border-radius:14px; padding:12px; }
-.info-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#9bb1de; font-weight:900; margin-bottom:4px; }
+.info-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#0747c7; font-weight:900; margin-bottom:4px; }
 .info-value { font-size:13px; color:var(--text); word-break:break-word; overflow-wrap:anywhere; }
 .preview-box {
   border:1px solid var(--line); background: rgba(255,255,255,.02); border-radius:16px; min-height:180px; overflow:hidden;
@@ -300,9 +300,9 @@ tbody tr.clickable { cursor: pointer }
 }
 .table-tight .mini-btn:hover, .mini-btn:hover { background: rgba(255,255,255,.08); }
 .badge-row, .flag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.badge.flag-new { background: rgba(86,163,255,.14); color: #a3cbff; border-color: rgba(86,163,255,.28); }
-.badge.flag-repeat { background: rgba(255,190,92,.14); color: #ffd595; border-color: rgba(255,190,92,.28); }
-.badge.flag-multi { background: rgba(115,123,255,.14); color: #c7cbff; border-color: rgba(115,123,255,.28); }
+.badge.flag-new { background: rgba(86,163,255,.14); color: #5d7594; border-color: rgba(86,163,255,.28); }
+.badge.flag-repeat { background: rgba(255,190,92,.14); color: #9c825b; border-color: rgba(255,190,92,.28); }
+.badge.flag-multi { background: rgba(115,123,255,.14); color: #73769c; border-color: rgba(115,123,255,.28); }
 .badge.flag-fail { background: rgba(255,109,122,.14); color: #ffb0b8; border-color: rgba(255,109,122,.28); }
 .badge.flag-target { background: rgba(39,211,138,.14); color: #8ef0c1; border-color: rgba(39,211,138,.28); }
 .badge.flag-selected { background: rgba(255,255,255,.08); color: #eef3ff; border-color: rgba(255,255,255,.15); }
@@ -1057,4 +1057,166 @@ html[data-theme="light"] .graph-col-label,
 html[data-theme="light"] .graph-hint {
   fill: #0f172a !important;
   stroke: none !important;
+}
+/* Investigation Feed 전체 높이 균형 맞추기 */
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 상단 영역 키우기 */
+.panel-head {
+  min-height: 100px; /* ← 여기 조절 (핵심) */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* summary 영역도 동일 비율로 확장 */
+#summaryBox {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+.mini-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.timeline-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.timeline-top .pill {
+  flex-shrink: 0;
+}
+.chart-box {
+  width: 100%;
+  height: 320px;   /* ← 이거 중요 */
+}
+/* select 기본 */
+.control {
+  color: #000000; /* 라이트모드 기본 */
+  background-color: #fff;
+}
+
+/* 다크모드 대응 */
+[data-theme="dark"] .control {
+  color: #fff;
+  background-color: #1e1e1e;
+}
+
+/* 핵심: 드롭다운 옵션 색 강제 */
+.control option {
+  color: #14012c;
+  background-color: #fff;
+}
+
+/* 다크모드 option 강제 */
+[data-theme="dark"] .control option {
+  color: #fff;
+  background-color: #1e1e1e;
+}
+.pagination .control {
+  background: rgba(148, 163, 184, 0.15); /* pill 느낌 */
+  color: #cbd5f5;
+  border-radius: 999px;
+  border: none;
+  padding: 8px 14px;
+  transition: all 0.2s ease;
+}
+
+.pagination .control:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.pagination .control:disabled {
+  opacity: 0.4;
+}
+/* ===== UI 통일 (pagination / pill / control) ===== */
+
+:root {
+  --ui-height: 34px;
+  --ui-font: 13px;
+  --ui-radius: 999px;
+  --ui-padding-x: 14px;
+}
+
+/* 버튼 + pill 공통 */
+.control,
+.pill {
+  height: var(--ui-height);
+  font-size: var(--ui-font);
+  border-radius: var(--ui-radius);
+  padding: 0 var(--ui-padding-x);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Prev / Next 버튼 */
+.pagination .control {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5f5;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.pagination .control:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.pagination .control:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Page pill */
+.pagination .pill {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+/* total pill (약하게) */
+#targetCountPill {
+  opacity: 0.7;
+}
+
+/* select (rows) */
+.pagination select.control {
+  appearance: none;
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5f5;
+  border: none;
+  padding-right: 28px;
+}
+
+/* hover */
+.pagination select.control:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
+/* ===== row(10 rows) 색 강제 분리 ===== */
+
+/* 라이트모드 */
+html:not(.dark) select.control {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+/* 다크모드 */
+html.dark select.control {
+  color: #3e4347 !important;
+  background-color: #1e293b !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
 }

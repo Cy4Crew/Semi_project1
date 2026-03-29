@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Darkweb Monitor · Analytics</title>
-  <link rel="stylesheet" href="/ui/assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body>
-<script src="/ui/assets/common.js"></script>
+<script src="./assets/common.js"></script>
 <script>
 installPage({
   pageKey: 'analytics',
   heroEyebrow: 'Advanced Statistics',
   heroTitle: 'Analytics Console',
-  heroDesc: '현재 API 범위에서 뽑아낼 수 있는 고급 시각화를 한 화면에 모았다. 긴 IOC 값 때문에 레이아웃이 깨지지 않게 repeated 목록도 정리한 버전이다.',
+  heroDesc: '현재 API 범위에서 뽑아낼 수 있는 고급 시각화를 한 화면에 모았다. 긴 IOC 값 때문에 레이아웃이 깨지지 않게 repeated IOC 목록도 정리한 버전이다.',
   heroMeta: ['repeated IOC', 'target load', 'status split', 'activity histogram'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -22,27 +22,79 @@ installPage({
     <div class="mini-desc">상세 판정은 Investigation과 Graph를 같이 보는 게 맞다.</div>`,
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
+
+    <style>
+      .time-chart-card {
+        width: 100%;
+      }
+
+      .time-chart-wrap {
+        width: 100%;
+        height: 280px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .time-chart-wrap canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+      }
+    </style>
+
     <section class="metrics" id="metricGrid"></section>
+
     <section class="analytics-grid">
       <section class="panel">
-        <div class="panel-head"><div><div class="panel-title">Repeated IOC Top 10</div><div class="panel-sub">같은 matched value 반복 기준</div></div></div>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Repeated IOC Top 10</div>
+            <div class="panel-sub">같은 matched value 반복 기준</div>
+          </div>
+        </div>
         <div class="bar-list" id="repeatList"></div>
       </section>
+
       <section class="panel">
-        <div class="panel-head"><div><div class="panel-title">Target Load</div><div class="panel-sub">target별 hit 수</div></div></div>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Target Load</div>
+            <div class="panel-sub">target별 hit 수</div>
+          </div>
+        </div>
         <div class="chart-box"><canvas id="targetChart"></canvas></div>
       </section>
+
       <section class="panel">
-        <div class="panel-head"><div><div class="panel-title">Alert Status Split</div><div class="panel-sub">최근 전송 상태 분포</div></div></div>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Alert Status Split</div>
+            <div class="panel-sub">최근 전송 상태 분포</div>
+          </div>
+        </div>
         <div class="chart-box"><canvas id="alertChart"></canvas></div>
       </section>
+
       <section class="panel">
-        <div class="panel-head"><div><div class="panel-title">Hit Type Split</div><div class="panel-sub">watch_type 기준 분포</div></div></div>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Hit Type Split</div>
+            <div class="panel-sub">watch_type 기준 분포</div>
+          </div>
+        </div>
         <div class="chart-box"><canvas id="typeChart"></canvas></div>
       </section>
-      <section class="panel" style="grid-column: 1 / -1;">
-        <div class="panel-head"><div><div class="panel-title">Activity Histogram</div><div class="panel-sub">시간대별 hit 발생 분포</div></div></div>
-        <div class="chart-box"><canvas id="timeChart"></canvas></div>
+
+      <section class="panel time-chart-card" style="grid-column: 1 / -1;">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Activity Histogram</div>
+            <div class="panel-sub">시간대별 hit 발생 분포</div>
+          </div>
+        </div>
+        <div class="time-chart-wrap">
+          <canvas id="timeChart"></canvas>
+        </div>
       </section>
     </section>`
 });
@@ -51,10 +103,100 @@ function renderBarList(el, entries) {
   const max = Math.max(...entries.map(x => x[1]), 1);
   el.innerHTML = entries.map(([label, value]) => `
     <div class="bar-row">
-      <div class="bar-meta"><span class="value-strong">${escapeHtml(label || '-')}</span><span>${escapeHtml(value)}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(value / max) * 100}%"></div></div>
-    </div>`).join('') || '<div class="empty">데이터 없음</div>';
+      <div class="bar-meta">
+        <span class="value-strong">${escapeHtml(label || '-')}</span>
+        <span>${escapeHtml(value)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${(value / max) * 100}%"></div>
+      </div>
+    </div>
+  `).join('') || '<div class="empty">데이터 없음</div>';
 }
+
+function drawTimeBars(canvasId, labels, values) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const wrap = canvas.parentElement;
+  const cssWidth = wrap.clientWidth || 900;
+  const cssHeight = wrap.clientHeight || 280;
+  const ratio = window.devicePixelRatio || 1;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
+  canvas.style.width = cssWidth + 'px';
+  canvas.style.height = cssHeight + 'px';
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  const width = cssWidth;
+  const height = cssHeight;
+
+  const pad = { top: 24, right: 10, bottom: 38, left: 10 };
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
+  const max = Math.max(...values, 1);
+
+  const textColor = isLight ? '#0f172a' : '#edf2ff';
+  const mutedColor = isLight ? '#475569' : '#9db0d6';
+  const gridColor = isLight ? 'rgba(15,23,42,.12)' : 'rgba(255,255,255,.08)';
+
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(width - pad.right, y);
+    ctx.stroke();
+  }
+
+  const count = labels.length;
+  const slotW = chartW / count;
+  const barW = Math.max(6, Math.min(14, slotW * 0.42));
+
+  labels.forEach((label, i) => {
+    const centerX = pad.left + slotW * i + slotW / 2;
+    const barH = (values[i] / max) * (chartH - 10);
+    const x = centerX - barW / 2;
+    const y = pad.top + chartH - barH;
+
+    const grad = ctx.createLinearGradient(0, y, 0, y + Math.max(barH, 1));
+    if (values[i] > 0) {
+      grad.addColorStop(0, '#ffbe5c');
+      grad.addColorStop(1, '#ff8a5b');
+    } else {
+      grad.addColorStop(0, 'rgba(148,163,184,.35)');
+      grad.addColorStop(1, 'rgba(148,163,184,.20)');
+    }
+
+    const r = Math.min(8, barW / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + barW, y, x + barW, y + Math.max(barH, 1), r);
+    ctx.arcTo(x + barW, y + Math.max(barH, 1), x, y + Math.max(barH, 1), r);
+    ctx.arcTo(x, y + Math.max(barH, 1), x, y, r);
+    ctx.arcTo(x, y, x + barW, y, r);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.fillStyle = textColor;
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(values[i]), centerX, Math.max(14, y - 6));
+
+    ctx.fillStyle = mutedColor;
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.fillText(label, centerX, height - 12);
+  });
+}
+
 async function load() {
   const [summary, hits, alerts, targets] = await Promise.all([
     getJson(API.summary),
@@ -62,6 +204,7 @@ async function load() {
     getJson(API.alerts(1, 150)),
     getJson(API.targets),
   ]);
+
   const hitRows = Array.isArray(hits) ? hits : [];
   const alertRows = Array.isArray(alerts) ? alerts : [];
   const targetRows = Array.isArray(targets) ? targets : [];
@@ -72,7 +215,12 @@ async function load() {
     if (!key) return;
     repeatMap[key] = (repeatMap[key] || 0) + 1;
   });
-  const repeatedTop = Object.entries(repeatMap).filter(([,v]) => v > 1).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+  const repeatedTop = Object.entries(repeatMap)
+    .filter(([, v]) => v > 1)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
   const targetCounts = {};
   hitRows.forEach(h => {
     const key = String(h.target_id || 'unknown');
@@ -80,15 +228,16 @@ async function load() {
     const label = found?.label || found?.name || `Target ${key}`;
     targetCounts[label] = (targetCounts[label] || 0) + 1;
   });
+
   const typeCounts = countBy(hitRows, 'watch_type');
   const alertCounts = countBy(alertRows, 'status');
 
-  const hours = Array.from({length: 24}, (_,i) => [String(i).padStart(2, '0'), 0]);
+  const hours = Array.from({ length: 24 }, (_, i) => [String(i).padStart(2, '0'), 0]);
   hitRows.forEach(h => {
     const d = new Date(h.last_seen_at || h.first_seen_at || 0);
     if (Number.isNaN(d.getTime())) return;
     const hour = d.getHours();
-    hours[hour][1] += 1;
+    if (hour >= 0 && hour < 24) hours[hour][1] += 1;
   });
 
   renderMetricCards(document.getElementById('metricGrid'), [
@@ -100,31 +249,50 @@ async function load() {
   ]);
 
   renderBarList(document.getElementById('repeatList'), repeatedTop);
-  drawBars('targetChart', Object.keys(targetCounts).slice(0, 8), Object.values(targetCounts).slice(0, 8), [
-    ['#5ad1ff', '#5679ff'],
-    ['#5bf0bf', '#2fd187'],
-    ['#ffbe5c', '#ff8a5b'],
-    ['#9d8bff', '#5f6bff'],
-  ]);
-  drawBars('alertChart', Object.keys(alertCounts), Object.values(alertCounts), [
-    ['#5bf0bf', '#2fd187'],
-    ['#ff8b9b', '#ff5c78'],
-    ['#ffbe5c', '#ff8a5b'],
-    ['#5ad1ff', '#5679ff'],
-  ]);
-  drawBars('typeChart', Object.keys(typeCounts), Object.values(typeCounts), [
-    ['#5ad1ff', '#5679ff'],
-    ['#5bf0bf', '#2fd187'],
-    ['#ffbe5c', '#ff8a5b'],
-    ['#9d8bff', '#5f6bff'],
-  ]);
-  drawBars('timeChart', hours.map(x => x[0]), hours.map(x => x[1]), [
-    ['#5ad1ff', '#5679ff'],
-    ['#5bf0bf', '#2fd187'],
-    ['#ffbe5c', '#ff8a5b'],
-    ['#9d8bff', '#5f6bff'],
-  ]);
+
+  drawBars(
+    'targetChart',
+    Object.keys(targetCounts).slice(0, 8),
+    Object.values(targetCounts).slice(0, 8),
+    [
+      ['#5ad1ff', '#5679ff'],
+      ['#5bf0bf', '#2fd187'],
+      ['#ffbe5c', '#ff8a5b'],
+      ['#9d8bff', '#5f6bff'],
+    ]
+  );
+
+  drawBars(
+    'alertChart',
+    Object.keys(alertCounts),
+    Object.values(alertCounts),
+    [
+      ['#5bf0bf', '#2fd187'],
+      ['#ff8b9b', '#ff5c78'],
+      ['#ffbe5c', '#ff8a5b'],
+      ['#5ad1ff', '#5679ff'],
+    ]
+  );
+
+  drawBars(
+    'typeChart',
+    Object.keys(typeCounts),
+    Object.values(typeCounts),
+    [
+      ['#5ad1ff', '#5679ff'],
+      ['#5bf0bf', '#2fd187'],
+      ['#ffbe5c', '#ff8a5b'],
+      ['#9d8bff', '#5f6bff'],
+    ]
+  );
+
+  drawTimeBars(
+    'timeChart',
+    hours.map(x => x[0]),
+    hours.map(x => x[1])
+  );
 }
+
 attachRefresh(() => guardedLoad(load));
 window.addEventListener('resize', () => guardedLoad(load));
 guardedLoad(load);
