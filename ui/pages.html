@@ -3,52 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Darkweb Monitor · Pages</title>
+  <title>Darkweb Monitor · Targets</title>
   <link rel="stylesheet" href="/ui/assets/styles.css" />
 </head>
 <body>
 <script src="/ui/assets/common.js"></script>
 <script>
 installPage({
-  pageKey: 'pages',
-  heroEyebrow: 'Evidence Explorer',
-  heroTitle: 'Pages & Evidence',
-  heroDesc: '최근 수집 페이지와 증거 파일을 보여주고 실제 디버깅을 통해 수집 성공, 변경, 에러 여부를 확인',
-  heroMeta: ['evidence 링크', '변경/에러 표시', '수집 상태 확인'],
+  pageKey: 'targets',
+  heroEyebrow: 'Collection Coverage',
+  heroTitle: 'Targets Overview',
+  heroDesc: '큐 상태, 마지막 큐잉, 마지막 수집, seed URL을 기준으로 운영 상태를 한눈에 확인',
+  heroMeta: ['queued 분리', 'seed URL 표시', 'last fetched 정리', '운영 판단 강화'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
-    <div class="card-title">Page Filters</div>
-    <label class="field-label" for="hostFilter">Host</label>
-    <select id="hostFilter" class="control"><option value="">전체</option></select>
-
-    <label class="field-label" for="statusFilter">Status Class</label>
-    <select id="statusFilter" class="control">
+    <div class="card-title">Target Filters</div>
+    <label class="field-label" for="queueFilter">Queue</label>
+    <select id="queueFilter" class="control">
       <option value="">전체</option>
-      <option value="ok">2xx/3xx</option>
-      <option value="fail">4xx/5xx</option>
+      <option value="queued">queued only</option>
+      <option value="not_queued">not queued</option>
     </select>
 
-    <label class="field-label" for="changedOnly">변경만 보기</label>
-    <select id="changedOnly" class="control">
+    <label class="field-label" for="stateFilter">State</label>
+    <select id="stateFilter" class="control">
       <option value="">전체</option>
-      <option value="changed">changed only</option>
-      <option value="error">error only</option>
+      <option value="never">never fetched</option>
+      <option value="fetched">fetched</option>
+      <option value="recent">recent active</option>
+      <option value="stale">stale</option>
     </select>
 
     <label class="field-label" for="searchBox">검색</label>
-    <input id="searchBox" class="control" type="text" placeholder="title / url / target" />`,
+    <input id="searchBox" class="control" type="text" placeholder="label / name / url / host" />`,
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
 
     <style>
       :root {
-        --page-ui-height: 38px;
-        --page-ui-font: 13px;
-        --page-ui-radius: 999px;
-        --page-ui-padding-x: 14px;
+        --target-ui-height: 38px;
+        --target-ui-font: 13px;
+        --target-ui-radius: 999px;
+        --target-ui-padding-x: 14px;
       }
 
-      .pages-top-actions {
+      .targets-top-actions {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -56,8 +55,8 @@ installPage({
         margin-left: auto;
       }
 
-      .pages-top-actions .control,
-      .pages-top-actions .pill {
+      .targets-top-actions .control,
+      .targets-top-actions .pill {
         width: auto;
         min-width: 0;
       }
@@ -71,10 +70,10 @@ installPage({
 
       .pagination .control,
       .pagination .pill {
-        height: var(--page-ui-height);
-        font-size: var(--page-ui-font);
-        border-radius: var(--page-ui-radius);
-        padding: 0 var(--page-ui-padding-x);
+        height: var(--target-ui-height);
+        font-size: var(--target-ui-font);
+        border-radius: var(--target-ui-radius);
+        padding: 0 var(--target-ui-padding-x);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -127,14 +126,14 @@ installPage({
         background: #ffffff;
       }
 
-      #pageCountPill {
-        opacity: 0.82;
-      }
-
-      .page-title-cell,
-      .page-target-cell {
+      .target-main-cell {
         max-width: 320px;
         word-break: break-word;
+      }
+
+      .target-url-cell {
+        max-width: 360px;
+        word-break: break-all;
       }
 
       .muted-sub {
@@ -143,8 +142,32 @@ installPage({
         opacity: 0.72;
       }
 
+      .queue-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+
+      .queue-dot.on {
+        background: #22c55e;
+        box-shadow: 0 0 0 4px rgba(34,197,94,.14);
+      }
+
+      .queue-dot.off {
+        background: #94a3b8;
+        box-shadow: 0 0 0 4px rgba(148,163,184,.14);
+      }
+
+      .quick-note {
+        font-size: 12px;
+        opacity: .8;
+      }
+
       @media (max-width: 900px) {
-        .pages-top-actions {
+        .targets-top-actions {
           width: 100%;
           justify-content: flex-start;
           margin-left: 0;
@@ -163,23 +186,23 @@ installPage({
           min-width: 96px;
         }
 
-        .page-title-cell,
-        .page-target-cell {
+        .target-main-cell,
+        .target-url-cell {
           max-width: 220px;
         }
       }
     </style>
 
-    <section class="grid-3" id="pageStats"></section>
+    <section class="grid-3" id="targetStats"></section>
 
     <section class="panel">
       <div class="panel-head">
         <div>
-          <div class="panel-title">Recent Pages</div>
-          <div class="panel-sub">수집 결과와 증거 파일 직접 열기</div>
+          <div class="panel-title">Targets</div>
+          <div class="panel-sub">운영 판단이 가능하도록 queued 여부, 마지막 큐잉, 마지막 수집, seed URL을 분리해서 표시</div>
         </div>
 
-        <div class="pages-top-actions pagination">
+        <div class="targets-top-actions pagination">
           <button class="control" id="prevBtnTop" type="button">Prev</button>
           <span class="pill" id="pagePillTop">Page 1 / 1</span>
           <button class="control" id="nextBtnTop" type="button">Next</button>
@@ -189,11 +212,11 @@ installPage({
             <option value="30">30 rows</option>
             <option value="50" selected>50 rows</option>
             <option value="100">100 rows</option>
-            <option value="120">120 rows</option>
-            <option value="250">250 rows</option>
+            <option value="200">200 rows</option>
+            <option value="500">500 rows</option>
           </select>
 
-          <span class="pill" id="pageCountPill">Total 0</span>
+          <span class="pill" id="targetCountPill">Total 0</span>
         </div>
       </div>
 
@@ -203,16 +226,16 @@ installPage({
             <tr>
               <th>ID</th>
               <th>Target</th>
-              <th>Status</th>
-              <th>Changed</th>
-              <th>Title / URL</th>
-              <th>Fetched</th>
-              <th>Evidence</th>
+              <th>Queued</th>
+              <th>Last Queued</th>
+              <th>Last Fetched</th>
+              <th>Seed URL</th>
+              <th>State</th>
             </tr>
           </thead>
-          <tbody id="pagesBody"></tbody>
+          <tbody id="targetsBody"></tbody>
         </table>
-        <div class="empty hidden" id="pagesEmpty">표시할 페이지가 없다.</div>
+        <div class="empty hidden" id="targetsEmpty">표시할 target이 없다.</div>
       </div>
 
       <div class="pagination">
@@ -224,86 +247,60 @@ installPage({
 });
 
 let rows = [];
-let filteredCache = [];
 let currentPage = 1;
 let pageSize = 50;
 
-/*
-  300으로 줄여서 기본 과부하를 낮춤.
-  1000개가 꼭 필요하면 다시 1000으로 바꿔도 되지만,
-  지금 구조에서는 300~500 정도가 훨씬 안정적임.
-*/
-const FETCH_LIMIT = 1000;
-
-let currentFilterKey = '';
-
-function statusClass(code) {
-  const n = Number(code || 0);
-  if (!n) return 'other';
-  if (n < 400) return 'ok';
-  return 'fail';
+function toDateSafe(v) {
+  const d = new Date(v || 0);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function makeSearchBlob(r) {
-  return [
-    r.id,
-    r.target_name,
-    r.host,
-    r.title,
-    r.url,
-    r.skip_reason,
-    r.error_message
-  ].map(v => String(v || '').toLowerCase()).join(' ');
+function hoursDiff(date) {
+  if (!date) return null;
+  return (Date.now() - date.getTime()) / 36e5;
 }
 
-function preprocessRows(items) {
-  return items.map(r => ({
-    ...r,
-    _searchBlob: makeSearchBlob(r),
-    _statusClass: statusClass(r.status_code),
-    _hasError: !!r.error_message,
-    _isChanged: !!r.content_changed
-  }));
+function targetState(row) {
+  const fetched = toDateSafe(row.last_fetched_at);
+  if (!fetched) return 'never';
+  const diff = hoursDiff(fetched);
+  if (diff !== null && diff <= 24) return 'recent';
+  if (diff !== null && diff > 24 * 7) return 'stale';
+  return 'fetched';
 }
 
-function getFilterState() {
-  return {
-    host: document.getElementById('hostFilter').value.trim().toLowerCase(),
-    status: document.getElementById('statusFilter').value.trim().toLowerCase(),
-    changed: document.getElementById('changedOnly').value.trim().toLowerCase(),
-    q: document.getElementById('searchBox').value.trim().toLowerCase()
-  };
+function stateBadge(state) {
+  if (state === 'never') return 'other';
+  if (state === 'recent') return 'ok';
+  if (state === 'stale') return 'fail';
+  return 'info';
 }
 
-function buildFilterKey(state) {
-  return [state.host, state.status, state.changed, state.q].join('||');
-}
+function filteredRows() {
+  const queue = document.getElementById('queueFilter').value.trim().toLowerCase();
+  const state = document.getElementById('stateFilter').value.trim().toLowerCase();
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
 
-function applyFilters(force = false) {
-  const state = getFilterState();
-  const nextKey = buildFilterKey(state);
+  return rows.filter(r => {
+    const queueOk =
+      !queue ||
+      (queue === 'queued' ? !!r.is_queued : !r.is_queued);
 
-  if (!force && nextKey === currentFilterKey) {
-    return filteredCache;
-  }
+    const rowState = targetState(r);
+    const stateOk = !state || rowState === state;
 
-  currentFilterKey = nextKey;
+    const joined = [
+      r.id,
+      r.label,
+      r.name,
+      r.host,
+      r.seed_url,
+      r.url,
+      r.last_error_message
+    ].map(v => String(v || '').toLowerCase()).join(' ');
 
-  filteredCache = rows.filter(r => {
-    if (state.host && String(r.host || '').toLowerCase() !== state.host) return false;
-    if (state.status && r._statusClass !== state.status) return false;
-
-    if (state.changed) {
-      if (state.changed === 'changed' && !r._isChanged) return false;
-      if (state.changed === 'error' && !r._hasError) return false;
-    }
-
-    if (state.q && !r._searchBlob.includes(state.q)) return false;
-
-    return true;
+    return queueOk && stateOk && (!q || joined.includes(q));
   });
-
-  return filteredCache;
 }
 
 function totalPages(list) {
@@ -317,7 +314,6 @@ function pagedRows(list) {
 
 function syncPageState(list) {
   const total = totalPages(list);
-
   if (currentPage < 1) currentPage = 1;
   if (currentPage > total) currentPage = total;
 
@@ -335,113 +331,93 @@ function syncPageState(list) {
 }
 
 function renderStats() {
-  let maxId = 0;
-  let changedCount = 0;
-  let errCount = 0;
-  let meaningful = 0;
-  const hostSet = new Set();
+  const queued = rows.filter(r => r.is_queued).length;
+  const neverFetched = rows.filter(r => targetState(r) === 'never').length;
+  const recentActive = rows.filter(r => targetState(r) === 'recent').length;
+  const stale = rows.filter(r => targetState(r) === 'stale').length;
+  const hosts = new Set(rows.map(r => String(r.host || '').trim()).filter(Boolean)).size;
 
-  for (const r of rows) {
-    const id = Number(r.id) || 0;
-    if (id > maxId) maxId = id;
-    if (r._isChanged) changedCount += 1;
-    if (r._hasError || Number(r.status_code || 0) >= 400) errCount += 1;
-    if (r.is_meaningful) meaningful += 1;
-    if (r.host) hostSet.add(String(r.host));
-  }
-
-  renderMetricCards(document.getElementById('pageStats'), [
-    { label: 'Loaded', value: maxId, foot: '전체 페이지 ID 기준' },
-    { label: 'Changed', value: changedCount, foot: 'content_changed=true' },
-    { label: 'Meaningful', value: meaningful, foot: 'is_meaningful=true' },
-    { label: 'Errors', value: errCount, foot: 'error_message 또는 4xx/5xx' },
-    { label: 'Hosts', value: hostSet.size, foot: '최근 로드 기준 호스트 수' },
+  renderMetricCards(document.getElementById('targetStats'), [
+    { label: 'Targets', value: rows.length, foot: '현재 로드 수' },
+    { label: 'Queued', value: queued, foot: 'is_queued=true' },
+    { label: 'Never Fetched', value: neverFetched, foot: 'last_fetched_at 없음' },
+    { label: 'Recent Active', value: recentActive, foot: '24시간 이내' },
+    { label: 'Stale', value: stale, foot: '7일 초과 미수집' },
+    { label: 'Hosts', value: hosts, foot: 'host 기준' }
   ]);
 }
 
 function renderTable() {
-  const list = applyFilters();
+  const list = filteredRows();
   syncPageState(list);
   const visible = pagedRows(list);
 
-  document.getElementById('pageCountPill').textContent = `Total ${list.length}`;
+  document.getElementById('targetCountPill').textContent = `Total ${list.length}`;
 
-  const html = visible.map(r => `
-    <tr id="page-${escapeHtml(r.id)}">
-      <td>${escapeHtml(r.id)}</td>
+  document.getElementById('targetsBody').innerHTML = visible.map(r => {
+    const state = targetState(r);
+    const seed = r.seed_url || r.url || '-';
+    const targetLabel = r.label || r.name || `Target ${r.id}`;
 
-      <td class="page-target-cell">
-        ${escapeHtml(r.target_name || '-')}
-        <div class="small muted">${escapeHtml(r.host || '-')}</div>
-      </td>
+    return `
+      <tr>
+        <td>${escapeHtml(r.id)}</td>
 
-      <td>
-        <span class="badge ${r._statusClass}">${escapeHtml(r.status_code ?? '-')}</span>
-      </td>
+        <td class="target-main-cell">
+          <div>${escapeHtml(targetLabel)}</div>
+          <div class="small muted">${escapeHtml(r.host || '-')}</div>
+        </td>
 
-      <td>
-        <span class="badge ${r._hasError ? 'fail' : (r._isChanged ? 'info' : 'other')}">
-          ${r._hasError ? 'error' : (r._isChanged ? 'changed' : 'stable')}
-        </span>
-      </td>
+        <td>
+          <span class="badge ${r.is_queued ? 'ok' : 'other'}">
+            <span class="queue-dot ${r.is_queued ? 'on' : 'off'}"></span>
+            ${r.is_queued ? 'queued' : 'idle'}
+          </span>
+        </td>
 
-      <td class="page-title-cell">
-        ${escapeHtml(r.title || '-')}
-        <div class="small">
-          ${r.url
-            ? `<a class="link" target="_blank" href="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a>`
+        <td>
+          <div>${escapeHtml(fmtDate(r.last_queued_at))}</div>
+          <div class="muted-sub">${escapeHtml(fmtAgo(r.last_queued_at))}</div>
+        </td>
+
+        <td>
+          <div>${escapeHtml(fmtDate(r.last_fetched_at))}</div>
+          <div class="muted-sub">${escapeHtml(fmtAgo(r.last_fetched_at))}</div>
+        </td>
+
+        <td class="target-url-cell">
+          ${seed && seed !== '-'
+            ? `<a class="link" target="_blank" href="${escapeHtml(seed)}">${escapeHtml(seed)}</a>`
             : '<span class="muted">-</span>'}
-        </div>
-        ${r.error_message ? `<div class="small muted">${escapeHtml(r.error_message)}</div>` : ''}
-      </td>
+        </td>
 
-      <td>
-        <div>${escapeHtml(fmtDate(r.fetched_at))}</div>
-        <div class="muted-sub">${escapeHtml(fmtAgo(r.fetched_at))}</div>
-      </td>
+        <td>
+          <span class="badge ${stateBadge(state)}">${escapeHtml(state)}</span>
+          ${r.last_error_message ? `<div class="quick-note">${escapeHtml(r.last_error_message)}</div>` : ''}
+        </td>
+      </tr>
+    `;
+  }).join('');
 
-      <td>
-        <div class="evidence-links">${evidenceLinks(r)}</div>
-      </td>
-    </tr>
-  `).join('');
-
-  document.getElementById('pagesBody').innerHTML = html;
-  document.getElementById('pagesEmpty').classList.toggle('hidden', visible.length !== 0);
+  document.getElementById('targetsEmpty').classList.toggle('hidden', visible.length !== 0);
 }
 
-async function loadPages() {
-  const raw = await getJson(API.pages(FETCH_LIMIT));
-  rows = preprocessRows(raw);
-  filteredCache = rows;
-  currentFilterKey = '';
-
-  fillSelect(document.getElementById('hostFilter'), uniqueValues(rows, 'host'));
+async function loadTargets() {
+  rows = await getJson(API.targets);
   renderStats();
   renderTable();
 }
 
-function resetToFirstPage(force = false) {
+function resetToFirstPage() {
   currentPage = 1;
-  applyFilters(force);
   renderTable();
 }
 
-function debounce(fn, delay = 180) {
-  let timer = null;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
-}
-
-['hostFilter', 'statusFilter', 'changedOnly'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => resetToFirstPage(true));
+['queueFilter', 'stateFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', resetToFirstPage);
 });
 
-document.getElementById('searchBox').addEventListener('input', debounce(() => {
-  resetToFirstPage(true);
-}, 180));
+document.getElementById('searchBox').addEventListener('input', resetToFirstPage);
 
 document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
   pageSize = Number(e.target.value) || 50;
@@ -457,7 +433,7 @@ document.getElementById('prevBtn').addEventListener('click', () => {
 });
 
 document.getElementById('nextBtn').addEventListener('click', () => {
-  const total = totalPages(filteredCache);
+  const total = totalPages(filteredRows());
   if (currentPage < total) {
     currentPage += 1;
     renderTable();
@@ -472,8 +448,8 @@ document.getElementById('nextBtnTop').addEventListener('click', () => {
   document.getElementById('nextBtn').click();
 });
 
-attachRefresh(() => guardedLoad(loadPages));
-guardedLoad(loadPages);
+attachRefresh(() => guardedLoad(loadTargets));
+guardedLoad(loadTargets);
 </script>
 </body>
 </html>

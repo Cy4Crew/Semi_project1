@@ -1215,7 +1215,7 @@ html:not(.dark) select.control {
 
 /* 다크모드 */
 html.dark select.control {
-  color: #f1f5f9 !important;`
+  color: #3e4347 !important;
   background-color: #1e293b !important;
   opacity: 1 !important;
   -webkit-text-fill-color: #f1f5f9 !important;

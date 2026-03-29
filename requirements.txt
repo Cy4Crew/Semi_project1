@@ -6,3 +6,11 @@ psycopg[binary]==3.2.9
 psycopg_pool==3.2.2
 pydantic-settings==2.10.1
 playwright==1.54.0
+cffi==2.0.0
+cryptography==46.0.6
+pyaes==1.6.1
+pyasn1==0.6.3
+pycparser==3.0
+python-dotenv==1.2.2
+rsa==4.9.1
+Telethon==1.42.0

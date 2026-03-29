@@ -13,7 +13,7 @@ installPage({
   pageKey: 'analytics',
   heroEyebrow: 'Advanced Statistics',
   heroTitle: 'Analytics Console',
-  heroDesc: '현재 API 범위에서 뽑아낼 수 있는 고급 시각화를 한 화면에 모았다. 긴 IOC 값 때문에 레이아웃이 깨지지 않게 repeated 목록도 정리한 버전이다.',
+  heroDesc: '현재 API 범위에서 뽑아낼 수 있는 고급 시각화를 한 화면에 모았다. 긴 IOC 값 때문에 레이아웃이 깨지지 않게 repeated IOC 목록도 정리한 버전이다.',
   heroMeta: ['repeated IOC', 'target load', 'status split', 'activity histogram'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -32,7 +32,7 @@ installPage({
         width: 100%;
         height: 280px;
         position: relative;
-        overflow: hidden; /* 스크롤 제거 */
+        overflow: hidden;
       }
 
       .time-chart-wrap canvas {
@@ -288,7 +288,7 @@ async function load() {
 
   drawTimeBars(
     'timeChart',
-    hours.map(x => x[0]),   // 00 ~ 23
+    hours.map(x => x[0]),
     hours.map(x => x[1])
   );
 }

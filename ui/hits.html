@@ -4,485 +4,191 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Darkweb Monitor · Hits</title>
-  <link rel="stylesheet" href="/ui/assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body>
-<script src="/ui/assets/common.js"></script>
+<script src="./assets/common.js"></script>
 <script>
+
 installPage({
   pageKey: 'hits',
-  heroEyebrow: 'Detection Review',
+  heroEyebrow: 'Detection Events',
   heroTitle: 'Hits Console',
-  heroDesc: '탐지 이벤트를 클릭하면 관련 정보와 함께 Investigation으로 바로 이어지는 작업 화면.',
-  heroMeta: ['flow refined', 'priority badges', 'investigation handoff', 'theme aware'],
-  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
-  sidebarExtra: `
-    <div class="card-title">Hit Filters</div>
-    <label class="field-label" for="hitTypeFilter">Type</label>
-    <select id="hitTypeFilter" class="control"><option value="">전체</option></select>
-    <label class="field-label" for="hitLabelFilter">Label</label>
-    <select id="hitLabelFilter" class="control"><option value="">전체</option></select>
-    <label class="field-label" for="searchBox">검색</label>
-    <input id="searchBox" class="control" type="text" placeholder="URL / matched / label" />`,
+  heroDesc: '탐지 이벤트를 클릭하면 Investigation으로 이동하며, hover 시 Quick Peek 제공',
+
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
-    <div id="selectedBanner"></div>
 
-    <style>
-  .hits-top-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-left: auto;
-  }
-
-  .hits-top-actions .control,
-  .hits-top-actions .pill {
-    width: auto;
-    min-width: 0;
-  }
-
-  /* 추가 시작 */
-  .detail-card {
-    max-height: calc(100vh - 180px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-  }
-
-  .detail-card.dragging-scroll {
-    cursor: grabbing;
-    user-select: none;
-  }
-
-  @media (max-width: 700px) {
-    .detail-card {
-      max-height: 60vh;
-    }
-  }
-  /* 추가 끝 */
-
-  @media (max-width: 700px) {
-    .hits-top-actions {
-      width: 100%;
-      justify-content: flex-start;
-      margin-left: 0;
-    }
-  }
-</style>
-
-    <section class="split">
-      <section class="panel" id="hitsPanel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">Recent Hits</div>
-            <div class="panel-sub">클릭하면 조사 화면으로 이동하고, 마우스를 올리면 미리보기를 볼 수 있다.</div>
-          </div>
-
-          <div class="hits-top-actions pagination">
-            <button class="control" id="prevBtnTop" type="button">Prev</button>
-            <span class="pill" id="pagePillTop">Page 1</span>
-            <button class="control" id="nextBtnTop" type="button">Next</button>
-            <span class="pill" id="hitCountPill">0 rows</span>
-          </div>
-        </div>
-
-        <div class="toolbar">
-          <input id="inlineSearch" class="control toolbar-grow" type="text" placeholder="추가 검색" />
-          <span class="pill" id="pagePill">Page 1</span>
-        </div>
-
-        <div class="table-wrap">
-          <table class="table-tight">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>Label</th>
-                <th>Matched</th>
-                <th>URL</th>
-                <th>Seen</th>
-              </tr>
-            </thead>
-            <tbody id="hitsBody"></tbody>
-          </table>
-          <div class="empty hidden" id="hitsEmpty">표시할 히트가 없다.</div>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Hits Table</div>
+          <div class="panel-sub">클릭 시 조사 화면으로 이동</div>
         </div>
 
         <div class="pagination">
-          <button class="control" id="prevBtn" type="button">Prev</button>
-          <button class="control" id="nextBtn" type="button">Next</button>
-        </div>
-      </section>
+          <button id="prevBtn">Prev</button>
+          <span id="pagePill">Page 1</span>
+          <button id="nextBtn">Next</button>
 
-      <aside class="detail-card">
-        <div class="card-title">Quick Peek</div>
-        <div id="detailBox" class="mini-desc">
-          왼쪽 표에 마우스를 올리면 Quick Peek이 즉시 바뀐다.
-          panel 밖으로 나가면 마지막으로 본 항목으로 유지된다.
+          <select id="pageSize">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+
+          <span class="pill" id="rowCount">0 rows</span>
         </div>
-      </aside>
-    </section>`
-    
+      </div>
+
+      <div class="toolbar">
+        <input id="searchBox" class="control toolbar-grow" type="text" placeholder="검색 (url / matched / type)" />
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Matched</th>
+              <th>URL</th>
+              <th>First Seen</th>
+              <th>Last Seen</th>
+            </tr>
+          </thead>
+          <tbody id="hitsBody"></tbody>
+        </table>
+
+        <div class="empty hidden" id="emptyBox">데이터 없음</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Quick Peek</div>
+      </div>
+      <div id="detailBox" class="mini-desc">
+        행에 마우스를 올리면 상세 정보 표시
+      </div>
+    </section>
+  `
 });
 
-const state = {
+let state = {
   page: 1,
+  size: 20,
   rows: [],
-  alerts: [],
-  pages: [],
-  extracted: [],
-  selected: null,
-  previewed: null,
-  targets: []
+  filtered: []
 };
 
-function getCurrentPreviewRow() {
-  return state.previewed || state.selected || null;
-}
+function filterRows() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
 
-function filteredRows() {
-  const q = (document.getElementById('searchBox').value + ' ' + document.getElementById('inlineSearch').value).trim().toLowerCase();
-  const type = document.getElementById('hitTypeFilter').value.trim().toLowerCase();
-  const label = document.getElementById('hitLabelFilter').value.trim().toLowerCase();
+  state.filtered = state.rows.filter(r => {
+    const text = [
+      r.id,
+      r.watch_type,
+      r.matched_value,
+      r.url
+    ].map(v => String(v || '').toLowerCase()).join(' ');
 
-  return state.rows.filter(r => {
-    const typeOk = !type || String(r.watch_type || '').toLowerCase() === type;
-    const labelOk = !label || String(r.label || '').toLowerCase() === label;
-    const joined = [r.id, r.watch_type, r.label, r.matched_value, r.url, r.title, r.fingerprint, r.target_id]
-      .map(v => String(v || '').toLowerCase())
-      .join(' ');
-    return typeOk && labelOk && (!q || joined.includes(q));
+    return !q || text.includes(q);
   });
-}
-
-function relatedSets(row) {
-  const sameValue = state.rows.filter(x => String(x.matched_value || '').toLowerCase() === String(row.matched_value || '').toLowerCase());
-  const sameUrl = state.rows.filter(x => String(x.url || '') === String(row.url || ''));
-  const sameTarget = state.rows.filter(x => String(x.target_id || '') === String(row.target_id || '') && String(row.target_id || '') !== '');
-  const samePageExtracted = state.extracted.filter(x => String(x.page_id) === String(row.page_id));
-  const relatedAlerts = state.alerts.filter(a =>
-    String(a.hit_id) === String(row.id) ||
-    String(a.matched_value || '').toLowerCase() === String(row.matched_value || '').toLowerCase() ||
-    String(a.url || '') === String(row.url || '')
-  );
-  const page = state.pages.find(p => String(p.id) === String(row.page_id));
-  const target = state.targets.find(t => String(t.id) === String(row.target_id));
-  return { sameValue, sameUrl, sameTarget, samePageExtracted, relatedAlerts, page, target };
-}
-
-function previewImage(path) {
-  const src = normalizeEvidence(path);
-  if (!src) return '<div class="mini-desc">screenshot 없음</div>';
-  return `<a class="preview-box" href="${escapeHtml(src)}" target="_blank"><img src="${escapeHtml(src)}" alt="screenshot preview" loading="lazy" /></a>`;
-}
-
-function renderRelatedHits(list, emptyText) {
-  if (!list.length) return `<div class="mini-desc">${escapeHtml(emptyText)}</div>`;
-  return `<div class="related-list">${list.slice(0, 6).map(item => `
-    <div class="related-item clickable" data-hit-id="${escapeHtml(item.id)}">
-      <div class="related-head">
-        <div class="related-main">#${escapeHtml(item.id)} · ${escapeHtml(item.watch_type || '-')}</div>
-        <span class="pill">${escapeHtml(fmtAgo(item.last_seen_at || item.first_seen_at))}</span>
-      </div>
-      <div class="related-sub">${escapeHtml(item.url || '-')}</div>
-    </div>
-  `).join('')}</div>`;
-}
-
-function renderAlertsList(list) {
-  if (!list.length) return '<div class="mini-desc">관련 alert 없음</div>';
-  return `<div class="related-list">${list.slice(0, 6).map(item => `
-    <div class="related-item">
-      <div class="related-head">
-        <div class="related-main">${escapeHtml(item.channel || '-')} · <span class="badge ${pickStatusClass(item.status)}">${escapeHtml(item.status || '-')}</span></div>
-        <span class="pill">${escapeHtml(fmtDate(item.created_at || item.sent_at))}</span>
-      </div>
-      <div class="related-sub">${escapeHtml(item.error_message || item.url || item.matched_value || '-')}</div>
-    </div>
-  `).join('')}</div>`;
-}
-
-function renderExtractedList(list) {
-  if (!list.length) return '<div class="mini-desc">같은 page에서 추출된 항목 없음</div>';
-  return `<div class="related-list">${list.slice(0, 8).map(item => `
-    <div class="related-item">
-      <div class="related-head">
-        <div class="related-main">${escapeHtml(item.type || '-')}</div>
-        <span class="pill">#${escapeHtml(item.id)}</span>
-      </div>
-      <div class="related-sub">${escapeHtml(item.normalized || item.raw || '-')}</div>
-    </div>
-  `).join('')}</div>`;
-}
-
-function bindRelatedClicks() {
-  document.querySelectorAll('[data-hit-id]').forEach(el => {
-    el.addEventListener('click', () => {
-      const row = state.rows.find(x => String(x.id) === String(el.dataset.hitId));
-      if (!row) return;
-      state.selected = row;
-      state.previewed = row;
-      saveSelectedHit(row);
-      renderSelected();
-      renderDetail(row);
-    });
-  });
-}
-
-function renderSelected() {
-  const box = document.getElementById('selectedBanner');
-  if (!state.selected) {
-    box.innerHTML = '';
-    return;
-  }
-  box.innerHTML = renderSelectedBanner(state.selected, `
-    <a class="mini-btn" href="/ui/investigation.html?hit=${encodeURIComponent(state.selected.id)}">Open Investigation</a>
-    ${state.selected.url ? `<a class="mini-btn" href="${escapeHtml(state.selected.url)}" target="_blank">Open URL</a>` : ''}
-  `);
 }
 
 function renderDetail(row) {
+  const box = document.getElementById('detailBox');
+
   if (!row) {
-    document.getElementById('detailBox').innerHTML = `
-      왼쪽 표에 마우스를 올리면 Quick Peek이 즉시 바뀐다.
-      panel 밖으로 나가면 마지막으로 본 항목으로 유지된다.
-    `;
+    box.innerHTML = '행에 마우스를 올리면 상세 정보 표시';
     return;
   }
 
-  const { sameValue, sameUrl, sameTarget, samePageExtracted, relatedAlerts, page, target } = relatedSets(row);
-  const flags = buildHitFlags(row, state.rows, state.alerts);
-
-  document.getElementById('detailBox').innerHTML = `
-    <div class="detail-stack">
-      <div class="detail-title-wrap">
-        <div>
-          <div class="detail-title">${escapeHtml(row.matched_value || 'Matched value')}</div>
-          <div class="mini-desc">${escapeHtml(row.title || row.url || '-')}</div>
-          ${renderFlagBadges(flags)}
-        </div>
-        <div class="row-actions">
-          <a class="mini-btn" href="/ui/investigation.html?hit=${encodeURIComponent(row.id)}">Investigate</a>
-          ${page && page.screenshot_path ? `<a class="mini-btn" href="${escapeHtml(normalizeEvidence(page.screenshot_path))}" target="_blank">VIEW</a>` : ''}
-        </div>
-      </div>
-
-      <div class="stat-grid-compact">
-        <div class="stat-card-compact"><div class="mini-kicker">Same IOC</div><div class="num">${sameValue.length}</div></div>
-        <div class="stat-card-compact"><div class="mini-kicker">Same URL</div><div class="num">${sameUrl.length}</div></div>
-        <div class="stat-card-compact"><div class="mini-kicker">Same Target</div><div class="num">${sameTarget.length}</div></div>
-        <div class="stat-card-compact"><div class="mini-kicker">Alerts</div><div class="num">${relatedAlerts.length}</div></div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">Core Context</div>
-        <div class="info-grid">
-          <div class="info-item"><div class="info-label">Hit ID</div><div class="info-value mono">${escapeHtml(row.id)}</div></div>
-          <div class="info-item"><div class="info-label">Type</div><div class="info-value">${escapeHtml(row.watch_type || '-')}</div></div>
-          <div class="info-item"><div class="info-label">Label</div><div class="info-value">${escapeHtml(row.label || '-')}</div></div>
-          <div class="info-item"><div class="info-label">Target</div><div class="info-value">${escapeHtml(target?.label || target?.name || row.target_id || '-')}</div></div>
-          <div class="info-item"><div class="info-label">First Seen</div><div class="info-value">${escapeHtml(fmtDate(row.first_seen_at))}</div></div>
-          <div class="info-item"><div class="info-label">Last Seen</div><div class="info-value">${escapeHtml(fmtDate(row.last_seen_at))}</div></div>
-        </div>
-      </div>
-
-      <div class="section-card evidence-preview">
-        <div class="section-title">Evidence Preview</div>
-        ${previewImage(page ? page.screenshot_path : row.screenshot_path)}
-        <div class="tag-row">${page ? evidenceLinks(page) : evidenceLinks(row)}</div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">Same IOC Hits</div>
-        ${renderRelatedHits(sameValue.filter(item => String(item.id) !== String(row.id)), '같은 IOC hit 없음')}
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">Same Target Hits</div>
-        ${renderRelatedHits(sameTarget.filter(item => String(item.id) !== String(row.id)), '같은 target hit 없음')}
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">Related Alerts</div>
-        ${renderAlertsList(relatedAlerts)}
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">Same Page Extracted</div>
-        ${renderExtractedList(samePageExtracted)}
-      </div>
+  box.innerHTML = `
+    <div><b>ID:</b> ${escapeHtml(row.id)}</div>
+    <div><b>Type:</b> ${escapeHtml(row.watch_type || '-')}</div>
+    <div><b>Matched:</b> ${escapeHtml(row.matched_value || '-')}</div>
+    <div><b>URL:</b> ${escapeHtml(row.url || '-')}</div>
+    <div><b>First Seen:</b> ${escapeHtml(fmtDate(row.first_seen_at))}</div>
+    <div><b>Last Seen:</b> ${escapeHtml(fmtDate(row.last_seen_at))}</div>
+    <div style="margin-top:10px;">
+      <a class="btn primary" href="/ui/investigation.html?hit=${row.id}">Open Investigation</a>
     </div>
   `;
-  bindRelatedClicks();
-}
-
-function rowMarkup(row) {
-  const flags = buildHitFlags(row, state.rows, state.alerts);
-  const isPreviewed = state.previewed && String(state.previewed.id) === String(row.id);
-
-  return `
-    <tr class="clickable ${isPreviewed ? 'highlight' : ''}" data-id="${escapeHtml(row.id)}">
-      <td>${escapeHtml(row.id)}</td>
-      <td><span class="badge type">${escapeHtml(row.watch_type || '-')}</span></td>
-      <td>${escapeHtml(row.label || '-')}</td>
-      <td>
-        <div class="matched-value truncate-2">${escapeHtml(row.matched_value || '-')}</div>
-        ${renderFlagBadges(flags)}
-        <div class="cell-actions">
-          <button type="button" class="mini-btn js-peek" data-id="${escapeHtml(row.id)}">VIEW</button>
-        </div>
-      </td>
-      <td>
-        ${row.url ? `<a class="link url-cell" href="${escapeHtml(row.url)}" target="_blank" onclick="event.stopPropagation()">${escapeHtml(row.url)}</a>` : '<span class="muted">-</span>'}
-      </td>
-      <td>${escapeHtml(fmtDate(row.last_seen_at || row.first_seen_at))}</td>
-    </tr>
-  `;
-}
-
-function bindTableEvents() {
-  Array.from(document.querySelectorAll('#hitsBody tr')).forEach(tr => {
-    const row = state.rows.find(x => String(x.id) === tr.dataset.id);
-    if (!row) return;
-
-    tr.addEventListener('mouseenter', (e) => {
-      if (e.target.closest('.js-peek') || e.target.closest('a')) return;
-      state.previewed = row;
-      renderDetail(row);
-    });
-
-    tr.addEventListener('click', (e) => {
-      if (e.target.closest('.js-peek') || e.target.closest('a')) return;
-      state.selected = row;
-      state.previewed = row;
-      saveSelectedHit(row);
-      renderSelected();
-      gotoInvestigation(row);
-    });
-  });
-
-  document.querySelectorAll('.js-peek').forEach(btn => {
-    btn.addEventListener('mouseenter', () => {
-      const row = state.rows.find(x => String(x.id) === String(btn.dataset.id));
-      if (!row) return;
-      state.previewed = row;
-      renderDetail(row);
-    });
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const row = state.rows.find(x => String(x.id) === String(btn.dataset.id));
-      if (!row) return;
-      state.selected = row;
-      state.previewed = row;
-      saveSelectedHit(row);
-      renderSelected();
-      renderDetail(row);
-      renderTable();
-    });
-  });
 }
 
 function renderTable() {
-  const rows = filteredRows();
+  const body = document.getElementById('hitsBody');
 
-  document.getElementById('hitCountPill').textContent = `${rows.length} rows`;
-  document.getElementById('pagePill').textContent = `Page ${state.page}`;
-  document.getElementById('pagePillTop').textContent = `Page ${state.page}`;
-  document.getElementById('hitsBody').innerHTML = rows.map(rowMarkup).join('');
-  document.getElementById('hitsEmpty').classList.toggle('hidden', rows.length !== 0);
+  body.innerHTML = state.filtered.map(row => `
+    <tr class="clickable" data-id="${row.id}">
+      <td>${escapeHtml(row.id)}</td>
+      <td><span class="badge type">${escapeHtml(row.watch_type || '-')}</span></td>
+      <td>${escapeHtml(row.matched_value || '-')}</td>
+      <td>${escapeHtml(row.url || '-')}</td>
+      <td>${escapeHtml(fmtDate(row.first_seen_at))}</td>
+      <td>${escapeHtml(fmtDate(row.last_seen_at))}</td>
+    </tr>
+  `).join('');
 
-  const prevDisabled = state.page <= 1;
-  const nextDisabled = state.rows.length < PAGE_SIZE;
+  document.getElementById('rowCount').textContent = `${state.filtered.length} rows`;
+  document.getElementById('emptyBox').classList.toggle('hidden', state.filtered.length !== 0);
 
-  document.getElementById('prevBtn').disabled = prevDisabled;
-  document.getElementById('nextBtn').disabled = nextDisabled;
-  document.getElementById('prevBtnTop').disabled = prevDisabled;
-  document.getElementById('nextBtnTop').disabled = nextDisabled;
-
-  bindTableEvents();
+  bindEvents();
 }
 
-async function loadHits() {
-  const [rows, alerts, pages, extracted, targets] = await Promise.all([
-    getJson(API.hits(state.page, PAGE_SIZE)),
-    getJson(API.alerts(1, 120)),
-    getJson(API.pages(140)),
-    getJson(API.extracted(180)),
-    getJson(API.targets)
-  ]);
+function bindEvents() {
+  document.querySelectorAll('#hitsBody tr').forEach(tr => {
 
-  state.rows = rows;
-  state.alerts = alerts;
-  state.pages = pages;
-  state.extracted = extracted;
-  state.targets = targets;
+    const row = state.rows.find(r => String(r.id) === tr.dataset.id);
 
-  fillSelect(document.getElementById('hitTypeFilter'), uniqueValues(state.rows, 'watch_type'));
-  fillSelect(document.getElementById('hitLabelFilter'), uniqueValues(state.rows, 'label'));
+    tr.addEventListener('mouseenter', () => {
+      renderDetail(row);
+    });
 
-  const saved = loadSelectedHitId();
-  if (saved) {
-    state.selected = state.rows.find(r => String(r.id) === String(saved)) || state.rows[0] || null;
-  } else if (!state.selected && state.rows[0]) {
-    state.selected = state.rows[0];
-  }
+    tr.addEventListener('click', () => {
+      window.location.href = `/ui/investigation.html?hit=${row.id}`;
+    });
 
-  if (!state.previewed) {
-    state.previewed = state.selected;
-  } else {
-    state.previewed = state.rows.find(r => String(r.id) === String(state.previewed.id)) || state.selected || state.rows[0] || null;
-  }
-
-  renderSelected();
-  renderDetail(getCurrentPreviewRow());
-  renderTable();
-}
-
-['hitTypeFilter', 'hitLabelFilter', 'searchBox', 'inlineSearch'].forEach(id => {
-  document.getElementById(id).addEventListener(id.includes('Filter') ? 'change' : 'input', () => {
-    const rows = filteredRows();
-    if (rows.length) {
-      state.previewed = rows.find(r => String(r.id) === String(state.previewed?.id)) || rows[0];
-    } else {
-      state.previewed = null;
-    }
-    renderDetail(getCurrentPreviewRow());
-    renderTable();
   });
-});
+}
 
-document.getElementById('hitsPanel').addEventListener('mouseleave', () => {
-  renderDetail(getCurrentPreviewRow());
+async function load() {
+  const data = await getJson(API.hits(state.page, state.size));
+
+  state.rows = data;
+  filterRows();
+  renderTable();
+
+  document.getElementById('pagePill').innerText = `Page ${state.page}`;
+}
+
+document.getElementById('searchBox').addEventListener('input', () => {
+  filterRows();
+  renderTable();
 });
 
 document.getElementById('prevBtn').addEventListener('click', () => {
   if (state.page > 1) {
-    state.page -= 1;
-    guardedLoad(loadHits);
+    state.page--;
+    load();
   }
 });
 
 document.getElementById('nextBtn').addEventListener('click', () => {
-  if (state.rows.length === PAGE_SIZE) {
-    state.page += 1;
-    guardedLoad(loadHits);
-  }
+  state.page++;
+  load();
 });
 
-document.getElementById('prevBtnTop').addEventListener('click', () => {
-  document.getElementById('prevBtn').click();
+document.getElementById('pageSize').addEventListener('change', (e) => {
+  state.size = Number(e.target.value);
+  state.page = 1;
+  load();
 });
 
-document.getElementById('nextBtnTop').addEventListener('click', () => {
-  document.getElementById('nextBtn').click();
-});
+guardedLoad(load);
 
-attachRefresh(() => guardedLoad(loadHits));
-guardedLoad(loadHits);
 </script>
 </body>
-</html>
+</html> 
