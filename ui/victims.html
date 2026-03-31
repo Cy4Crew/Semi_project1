@@ -1,64 +1,358 @@
 <!doctype html>
 <html lang="ko">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Darkweb Monitor · Victims</title>
+  <title>Victims Monitor</title>
   <link rel="stylesheet" href="/ui/assets/styles.css" />
+
+  <style>
+    /* ===== (기존 CSS 그대로 유지) ===== */
+    .rv-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .rv-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .rv-card {
+      background: rgba(255, 255, 255, .025);
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 16px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all .18s ease;
+      position: relative;
+    }
+
+    .rv-card:hover {
+      border-color: rgba(90, 160, 255, .6);
+      background: rgba(90, 160, 255, .06);
+      transform: translateY(-2px);
+    }
+
+    .rv-name {
+      font-weight: 800;
+      font-size: 14px;
+      color: #edf2ff;
+    }
+
+    .rv-badges {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .badge {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .badge.corp {
+      background: rgba(91, 240, 191, .12);
+      color: #5bf0bf;
+    }
+
+    .badge.onion {
+      background: rgba(255, 190, 92, .12);
+      color: #ffbe5c;
+    }
+
+    .badge.country {
+      background: rgba(120, 140, 255, .12);
+      color: #aab6ff;
+    }
+
+    .badge.hot {
+      background: rgba(255, 80, 80, .15);
+      color: #ff6b6b;
+    }
+
+    .rv-desc {
+      font-size: 12px;
+      color: #a3b1d2;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .rv-detail {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, .3);
+      border: 1px solid rgba(255, 255, 255, .08);
+      display: none;
+      font-size: 12px;
+      color: #cfe3ff;
+      line-height: 1.6;
+    }
+
+    .rv-card.open .rv-detail {
+      display: block;
+    }
+
+    .rv-row {
+      margin-bottom: 8px;
+    }
+
+    .rv-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .rv-link {
+      color: #5ad1ff;
+      text-decoration: none;
+    }
+
+    .rv-link:hover {
+      text-decoration: underline;
+    }
+
+    .filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filters input,
+    .filters select {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .08);
+      color: #edf2ff;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+
+    .pagination {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .page-btn {
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .08);
+      color: #a3b1d2;
+      padding: 6px 10px;
+      border-radius: 8px;
+      margin: 0 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+  </style>
 </head>
+
 <body>
-<script src="/ui/assets/common.js"></script>
-<script>
-installPage({
-  pageKey: 'victims',
-  heroEyebrow: 'Threat Tracking',
-  heroTitle: 'Victims',
-  heroDesc: '랜섬웨어 조직에 의해 피해를 입은 기업 타임라인을 추적한다. Awaiting → Published 상태 변화, 협상 감지(deadline 소멸)를 이벤트로 기록한다.',
-  heroMeta: ['deadline tracking', 'negotiation detection', 'corp intel'],
-  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
-  sidebarExtra: `
-    <div class="card-title">Victim Filters</div>
-    <label class="field-label" for="victimStatusFilter">Status</label>
-    <select id="victimStatusFilter" class="control">
-      <option value="">전체</option>
-      <option value="awaiting">Awaiting (deadline)</option>
-      <option value="published">Published (유출됨)</option>
-      <option value="negotiated">Negotiated (협상 추정)</option>
-    </select>
-    <label class="field-label" for="victimCountryFilter">Country</label>
-    <select id="victimCountryFilter" class="control"><option value="">전체</option></select>
-    <label class="field-label" for="victimSearch">검색</label>
-    <input id="victimSearch" class="control" type="text" placeholder="기업명 / 도메인" />`,
-  mainHtml: `
-    <div class="hidden empty" id="errorBox"></div>
-    <div id="metricsRow" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
-      <article class="metric"><div class="metric-label">Awaiting</div><div class="metric-value" id="mAwaiting">-</div><div class="metric-foot">데드라인 남은 기업</div></article>
-      <article class="metric"><div class="metric-label">Published</div><div class="metric-value" id="mPublished">-</div><div class="metric-foot">이미 유출된 기업</div></article>
-      <article class="metric"><div class="metric-label">Negotiated</div><div class="metric-value" id="mNegotiated">-</div><div class="metric-foot">협상 완료 추정</div></article>
+  <script src="/ui/assets/common.js"></script>
+
+  <script>
+
+    const onionRegex = /[a-z2-7]{16,56}\.onion/gi;
+
+    function extractOnion(text) {
+      return (text || '').match(onionRegex) || [];
+    }
+
+    function detectCountry(v) {
+      const t = JSON.stringify(v).toLowerCase();
+      if (t.includes('usa') || t.includes('united states')) return 'US';
+      if (t.includes('korea')) return 'KR';
+      if (t.includes('japan')) return 'JP';
+      if (t.includes('germany')) return 'DE';
+      if (t.includes('france')) return 'FR';
+      if (t.includes('china')) return 'CN';
+      return 'Unknown';
+    }
+
+    function calcHot(v) {
+      let s = 0;
+      if (v.onion) s += 3;
+      if (v.isCorp) s += 2;
+      if ((v.description || '').length > 200) s += 1;
+      return s;
+    }
+
+    function enrichData(arr) {
+      return arr.map(v => {
+        const text = Object.values(v).join(' ');
+        const onions = extractOnion(text);
+
+        const isCorp = /inc|corp|ltd|company/i.test(text);
+        const onion = onions[0] || null;
+
+        return {
+          ...v,
+          onion,
+          isCorp,
+          country: detectCountry(v),
+          hot: calcHot({ onion, isCorp, description: v.description })
+        };
+      }).filter(v => v.isCorp && v.onion);
+    }
+
+    let rvAll = [];
+    let rvFiltered = [];
+    let rvPage = 1;
+    let openedIndex = null;
+    const PAGE = 24;
+
+    function renderGrid() {
+      const grid = document.getElementById('grid');
+      const start = (rvPage - 1) * PAGE;
+      const list = rvFiltered.slice(start, start + PAGE);
+
+      grid.innerHTML = list.map((v, i) => {
+        const idx = start + i;
+
+        return `
+<div class="rv-card ${openedIndex === idx ? 'open' : ''}" data-idx="${idx}">
+  <div class="rv-name">${escapeHtml(v.victim || 'unknown')}</div>
+
+  <div class="rv-badges">
+    <span class="badge corp">CORP</span>
+    <span class="badge onion">ONION</span>
+    <span class="badge country">${v.country}</span>
+    <span class="badge hot">🔥 ${v.hot}</span>
+  </div>
+
+  <div class="rv-desc">
+    ${escapeHtml((v.description || '').slice(0, 120))}
+  </div>
+
+  <div class="rv-detail">
+    <div class="rv-row">
+      🧅 <a class="rv-link" href="http://${v.onion}" target="_blank">${v.onion}</a>
     </div>
-    <section class="panel" style="padding:24px">
-      <div class="card-title">Victim Timeline</div>
-      <p class="muted" style="margin-bottom:16px;font-size:13px">ransomware.live API 연동 후 실시간 피해 기업 목록이 표시됩니다.</p>
-      <div id="victimTable">
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
-          <span>Company</span><span>Country</span><span>Group</span><span>Status</span><span>Deadline</span><span>is_corp</span>
-        </div>
-        <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
-          ⚡ API 연동 대기 중 — 피해 기업 데이터가 여기에 표시됩니다
-        </div>
-      </div>
-    </section>`
-});
+  </div>
+</div>
+`;
+      }).join('');
 
-async function loadVictims() {
-  // TODO: fetch('/api/ransomware/victims') 연동
-  setUpdated(nowStr());
-}
+      bindCardEvents();
+      renderPagination();
+    }
 
-document.addEventListener('DOMContentLoaded', () => {
-  attachRefresh(loadVictims);
-  loadVictims();
-});
-</script>
+    function renderPagination() {
+      const total = Math.ceil(rvFiltered.length / PAGE);
+      const el = document.getElementById('pagination');
+
+      el.innerHTML = '';
+      for (let i = 1; i <= total; i++) {
+        el.innerHTML += `<button class="page-btn" onclick="goPage(${i})">${i}</button>`;
+      }
+    }
+
+    function goPage(p) {
+      rvPage = p;
+      renderGrid();
+    }
+
+    function bindCardEvents() {
+      document.querySelectorAll('.rv-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const idx = Number(card.dataset.idx);
+          openedIndex = openedIndex === idx ? null : idx;
+          renderGrid();
+        });
+      });
+    }
+
+    function applyFilter() {
+      const q = document.getElementById('search').value.toLowerCase();
+      const group = document.getElementById('groupFilter').value;
+      const country = document.getElementById('countryFilter').value;
+
+      rvFiltered = rvAll.filter(v =>
+        (!q || (v.victim || '').toLowerCase().includes(q)) &&
+        (!group || v.group === group) &&
+        (!country || v.country === country)
+      );
+
+      rvPage = 1;
+      renderGrid();
+    }
+
+    function buildFilters() {
+      const groups = [...new Set(rvAll.map(v => v.group).filter(Boolean))];
+      const countries = [...new Set(rvAll.map(v => v.country))];
+
+      document.getElementById('groupFilter').innerHTML =
+        '<option value="">전체 그룹</option>' +
+        groups.map(g => `<option>${g}</option>`).join('');
+
+      document.getElementById('countryFilter').innerHTML =
+        '<option value="">전체 국가</option>' +
+        countries.map(c => `<option>${c}</option>`).join('');
+    }
+
+    async function load() {
+      const res = await fetch('/api/rl/victims');
+      const json = await res.json();
+
+      rvAll = enrichData(json.victims || json || []);
+      rvFiltered = rvAll;
+
+      buildFilters();
+      renderGrid();
+    }
+
+   async function updateTargets() {
+      // 1️⃣ onion만 추출 + 중복 제거
+      const uniqueOnions = [...new Set(
+        rvFiltered
+          .map(v => v.onion)
+          .filter(Boolean)
+          .map(o => o.toLowerCase().replace(/^http:\/\//, '').replace(/\/$/, ''))
+      )];
+
+      // 2️⃣ 서버 전송
+      await fetch('/api/rl/targets/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onions: uniqueOnions })
+      });
+
+      alert(`targets.json 현행화 완료 (${uniqueOnions.length}개)`);
+    }
+
+    installPage({
+      pageKey: 'victims',
+      heroTitle: 'Victims Monitor',
+      heroDesc: 'CORP + ONION 필터',
+      actionHtml: `
+        <button class="btn primary" onclick="updateTargets()">🧅 Targets 현행화</button>
+      `,
+      mainHtml: `
+        <div class="filters">
+          <input id="search" placeholder="검색..."/>
+          <select id="groupFilter"></select>
+          <select id="countryFilter"></select>
+        </div>
+
+        <div id="grid" class="rv-grid"></div>
+        <div id="pagination" class="pagination"></div>
+      `
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('search').addEventListener('input', applyFilter);
+      document.getElementById('groupFilter').addEventListener('change', applyFilter);
+      document.getElementById('countryFilter').addEventListener('change', applyFilter);
+      load();
+    });
+
+  </script>
 </body>
+
 </html>

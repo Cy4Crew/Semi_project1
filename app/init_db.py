@@ -5,6 +5,7 @@ from app.core.db import get_conn, open_pool
 from app.core.seed_loader import load_targets_file, load_watchlist_file
 
 SCHEMA = [
+    # ================= 기존 =================
     """
     CREATE TABLE IF NOT EXISTS targets (
         id BIGSERIAL PRIMARY KEY,
@@ -87,7 +88,52 @@ SCHEMA = [
         alert_fingerprint TEXT
     )
     """,
-    # ── Telegram 관련 테이블 (incoming 브랜치에서 병합) ──────────────────────
+
+    # ================= ⭐ 핵심: darkweb_posts 확장 =================
+    """
+    CREATE TABLE IF NOT EXISTS darkweb_posts (
+        id BIGSERIAL PRIMARY KEY,
+        source TEXT,
+        victim TEXT,
+        group_name TEXT,
+        description TEXT,
+
+        post_url TEXT,
+        discovered_at TIMESTAMPTZ,
+        attack_date TIMESTAMPTZ,
+
+        category TEXT,
+        is_corp BOOLEAN,
+        confidence FLOAT,
+
+        has_onion BOOLEAN,
+        onion_url TEXT,
+
+        matched_keywords TEXT[],
+        telegram_links TEXT[],
+
+        raw JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """,
+
+    # ================= ⭐ 캐시 테이블 추가 =================
+    """
+    CREATE TABLE IF NOT EXISTS rl_info_cache (
+        id INTEGER PRIMARY KEY,
+        payload JSONB,
+        fetched_at TIMESTAMPTZ
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS rl_victims_cache (
+        id INTEGER PRIMARY KEY,
+        payload JSONB,
+        fetched_at TIMESTAMPTZ
+    )
+    """,
+
+    # ================= Telegram =================
     """
     CREATE TABLE IF NOT EXISTS tg_channels (
         id BIGSERIAL PRIMARY KEY,
@@ -121,81 +167,13 @@ SCHEMA = [
         UNIQUE(channel_id, message_id)
     )
     """,
-    """
-    CREATE TABLE IF NOT EXISTS tg_wallets (
-        id BIGSERIAL PRIMARY KEY,
-        channel_name TEXT NOT NULL,
-        coin_type TEXT NOT NULL,
-        address TEXT NOT NULL,
-        tags TEXT,
-        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(channel_name, coin_type, address)
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS tg_extracted_info (
-        id BIGSERIAL PRIMARY KEY,
-        channel_name TEXT NOT NULL,
-        data_type TEXT NOT NULL,
-        value TEXT NOT NULL,
-        source TEXT NOT NULL DEFAULT 'chat',
-        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(channel_name, data_type, value)
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS tg_private_channels (
-        id BIGSERIAL PRIMARY KEY,
-        invite_link TEXT NOT NULL,
-        channel_id BIGINT,
-        channel_name TEXT,
-        found_in_channel TEXT,
-        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(invite_link, found_in_channel)
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS tg_members (
-        id BIGSERIAL PRIMARY KEY,
-        channel_name TEXT NOT NULL,
-        channel_id BIGINT,
-        user_id BIGINT NOT NULL,
-        username TEXT,
-        nickname TEXT,
-        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(channel_id, user_id)
-    )
-    """,
-    # ── ransomware.live 캐시 테이블 (HEAD 브랜치에서 병합) ───────────────────
-    """
-    CREATE TABLE IF NOT EXISTS rl_info_cache (
-        id         INT PRIMARY KEY DEFAULT 1,
-        payload    JSONB NOT NULL,
-        fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        CHECK (id = 1)
-    )
-    """,
 ]
 
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_pages_url ON pages(url)",
     "CREATE INDEX IF NOT EXISTS idx_pages_host ON pages(host)",
-    "CREATE INDEX IF NOT EXISTS idx_extracted_items_normalized ON extracted_items(normalized)",
-    "CREATE INDEX IF NOT EXISTS idx_extracted_items_group_key ON extracted_items(group_key)",
-    "CREATE INDEX IF NOT EXISTS idx_watchlist_normalized ON watchlist(normalized)",
-    "CREATE INDEX IF NOT EXISTS idx_watchlist_hits_watchlist_id ON watchlist_hits(watchlist_id)",
-    "CREATE INDEX IF NOT EXISTS idx_watchlist_hits_last_seen_at ON watchlist_hits(last_seen_at)",
-    "CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_alert_fingerprint_channel ON alerts(alert_fingerprint, channel) WHERE alert_fingerprint IS NOT NULL",
-    "CREATE INDEX IF NOT EXISTS idx_tg_channels_channel_id ON tg_channels(channel_id)",
-    "CREATE INDEX IF NOT EXISTS idx_tg_raw_messages_channel_id ON tg_raw_messages(channel_id)",
-    "CREATE INDEX IF NOT EXISTS idx_tg_wallets_address ON tg_wallets(address)",
-    "CREATE INDEX IF NOT EXISTS idx_tg_wallets_coin_type ON tg_wallets(coin_type)",
-    "CREATE INDEX IF NOT EXISTS idx_tg_extracted_info_data_type ON tg_extracted_info(data_type)",
-    "CREATE INDEX IF NOT EXISTS idx_tg_extracted_info_value ON tg_extracted_info(value)",
-    "CREATE INDEX IF NOT EXISTS idx_tg_members_user_id ON tg_members(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_darkweb_onion ON darkweb_posts(onion_url)",
 ]
-
 
 def init_db(load_seed_data: bool = True) -> None:
     settings.html_dir.mkdir(parents=True, exist_ok=True)
@@ -209,32 +187,36 @@ def init_db(load_seed_data: bool = True) -> None:
             for stmt in SCHEMA:
                 cur.execute(stmt)
 
-            # ── 기존 DB 마이그레이션 (컬럼·인덱스 누락분 보완) ────────────────
-            cur.execute(
-                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS is_queued BOOLEAN NOT NULL DEFAULT FALSE"
-            )
-            cur.execute(
-                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_queued_at TIMESTAMPTZ"
-            )
-            cur.execute(
-                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ"
-            )
-            cur.execute(
-                "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_fingerprint TEXT"
-            )
+            # 안전 마이그레이션
             cur.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_alert_fingerprint_channel
-                ON alerts(alert_fingerprint, channel)
-                WHERE alert_fingerprint IS NOT NULL
+                ALTER TABLE darkweb_posts
+                ADD COLUMN IF NOT EXISTS post_url TEXT,
+                ADD COLUMN IF NOT EXISTS discovered_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS attack_date TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS has_onion BOOLEAN,
+                ADD COLUMN IF NOT EXISTS onion_url TEXT,
+                ADD COLUMN IF NOT EXISTS confidence FLOAT
             """)
 
-            # watchlist 정규표현식 지원 마이그레이션
             cur.execute(
-                "ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS is_regex BOOLEAN NOT NULL DEFAULT FALSE"
+                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS is_queued BOOLEAN NOT NULL DEFAULT FALSE"
             )
 
             for stmt in INDEXES:
                 cur.execute(stmt)
+
+            # ⭐ 캐시 기본 row 생성 (에러 방지 핵심)
+            cur.execute("""
+                INSERT INTO rl_info_cache (id, payload, fetched_at)
+                VALUES (1, '{}'::jsonb, NOW())
+                ON CONFLICT (id) DO NOTHING
+            """)
+
+            cur.execute("""
+                INSERT INTO rl_victims_cache (id, payload, fetched_at)
+                VALUES (1, '{}'::jsonb, NOW())
+                ON CONFLICT (id) DO NOTHING
+            """)
 
         if load_seed_data:
             load_targets_file(conn, settings.targets_seed_path)

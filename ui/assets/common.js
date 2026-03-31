@@ -21,11 +21,7 @@ const NAV = [
   { key: 'graph',         href: '/ui/graph.html',           label: 'Graph',             section: 'analysis' },
   { key: 'analytics',     href: '/ui/analytics.html',       label: 'Analytics',         section: 'analysis' },
   { key: 'rl-dashboard',      href: '/ui/rl_dashboard.html',      label: 'Ransomware.live',   section: 'tracking' },
-  { key: 'ransomware-groups', href: '/ui/ransomware_groups.html', label: 'Ransomware Groups', section: 'tracking' },
   { key: 'victims',           href: '/ui/victims.html',           label: 'Victims',           section: 'tracking' },
-  { key: 'crypto-wallet',     href: '/ui/crypto_wallet.html',     label: 'Crypto Wallet',     section: 'tracking' },
-  { key: 'telegram',          href: '/ui/telegram.html',          label: 'Telegram',          section: 'tracking' },
-  { key: 'incidents',         href: '/ui/incidents.html',         label: 'Incidents',         section: 'tracking' },
 ];
 
 const $ = (s) => document.querySelector(s);
