@@ -247,6 +247,9 @@ async function loadOverview() {
 attachRefresh(() => guardedLoad(loadOverview));
 window.addEventListener('resize', () => guardedLoad(loadOverview));
 guardedLoad(loadOverview);
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
 </script>
 </body>
 </html>

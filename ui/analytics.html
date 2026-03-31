@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Darkweb Monitor · Analytics</title>
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
 </head>
 <body>
-<script src="./assets/common.js"></script>
+<script src="/ui/assets/common.js"></script>
 <script>
 installPage({
   pageKey: 'analytics',
   heroEyebrow: 'Advanced Statistics',
   heroTitle: 'Analytics Console',
-  heroDesc: '현재 API 범위에서 뽑아낼 수 있는 고급 시각화를 한 화면에 모았다. 긴 IOC 값 때문에 레이아웃이 깨지지 않게 repeated IOC 목록도 정리한 버전이다.',
+  heroDesc: 'API의 시각화를 통해 간편하게 목록을 보는 화면.',
   heroMeta: ['repeated IOC', 'target load', 'status split', 'activity histogram'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -296,6 +296,9 @@ async function load() {
 attachRefresh(() => guardedLoad(load));
 window.addEventListener('resize', () => guardedLoad(load));
 guardedLoad(load);
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
 </script>
 </body>
 </html>
