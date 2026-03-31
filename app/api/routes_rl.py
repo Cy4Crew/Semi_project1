@@ -10,7 +10,7 @@ from app.repository import rl_cache
 
 router = APIRouter(prefix="/api/rl", tags=["ransomware-live"])
 
-RL_BASE = settings.ransomware_live_api_base_url.rstrip("/")
+RL_BASE = "https://api.ransomware.live/v2"
 
 _HEADERS = {
     "User-Agent": "DarkwebMonitor/2.0",
@@ -33,13 +33,8 @@ async def _rl_get(path: str) -> dict | list:
         raise HTTPException(status_code=502, detail=f"ransomware.live 연결 오류: {e}")
 
 
-# ── /info  (DB 캐시에서 조회) ────────────────────────────────────────────────
 @router.get("/info")
 def rl_info():
-    """
-    캐시된 ransomware.live /info 메타데이터를 반환한다.
-    DB에 데이터가 없으면 404를 반환하므로 프론트에서 /refresh를 먼저 호출해야 한다.
-    """
     with get_conn() as conn:
         row = rl_cache.get_cache(conn)
         conn.commit()
@@ -57,13 +52,8 @@ def rl_info():
     })
 
 
-# ── /info/refresh  (ransomware.live 직접 호출 → DB 저장) ────────────────────
 @router.post("/info/refresh")
 async def rl_info_refresh():
-    """
-    ransomware.live /v2/info를 직접 호출해 DB에 저장(upsert)한다.
-    하루 1회 수동 현행화 용도.
-    """
     data = await _rl_get("/info")
 
     with get_conn() as conn:
@@ -78,7 +68,6 @@ async def rl_info_refresh():
     })
 
 
-# ── 기타 프록시 (캐시 없이 직접 조회) ────────────────────────────────────────
 @router.get("/groups")
 async def rl_groups():
     data = await _rl_get("/groups")

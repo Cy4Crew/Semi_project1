@@ -1,57 +1,855 @@
 <!doctype html>
 <html lang="ko">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Darkweb Monitor · Ransomware Groups</title>
   <link rel="stylesheet" href="/ui/assets/styles.css" />
+  <style>
+    /* ── 집계 통계 카드 ─────────────────────────────────── */
+    .rg-stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .rg-stat {
+      padding: 18px 20px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, .07);
+      background: rgba(255, 255, 255, .03);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rg-stat::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 18px 18px 0 0;
+    }
+
+    .rg-stat.blue::before {
+      background: linear-gradient(90deg, #5ad1ff, #5679ff);
+    }
+
+    .rg-stat.green::before {
+      background: linear-gradient(90deg, #5bf0bf, #2fd187);
+    }
+
+    .rg-stat.red::before {
+      background: linear-gradient(90deg, #ff6d7a, #ff4c5b);
+    }
+
+    .rg-stat.amber::before {
+      background: linear-gradient(90deg, #ffbe5c, #ff8a5b);
+    }
+
+    .rg-stat-val {
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+
+    .rg-stat.blue .rg-stat-val {
+      color: #5ad1ff;
+    }
+
+    .rg-stat.green .rg-stat-val {
+      color: #5bf0bf;
+    }
+
+    .rg-stat.red .rg-stat-val {
+      color: #ff6d7a;
+    }
+
+    .rg-stat.amber .rg-stat-val {
+      color: #ffbe5c;
+    }
+
+    .rg-stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      font-weight: 700;
+      color: #7f95c8;
+    }
+
+    /* ── 테이블 ─────────────────────────────────────────── */
+    .rg-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .rg-table thead th {
+      padding: 10px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: #7f95c8;
+      font-weight: 900;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, .07);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .rg-table thead th:hover {
+      color: #edf2ff;
+    }
+
+    .rg-table thead th.rg-sorted {
+      color: #56a3ff;
+    }
+
+    .rg-table tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, .04);
+      cursor: pointer;
+      transition: background .12s;
+    }
+
+    .rg-table tbody tr:hover {
+      background: rgba(86, 163, 255, .05);
+    }
+
+    .rg-table tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    .rg-table tbody td {
+      padding: 11px 14px;
+      vertical-align: middle;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── 셀 컴포넌트 ────────────────────────────────────── */
+    .rg-name-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 150px;
+    }
+
+    .rg-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 900;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, rgba(86, 163, 255, .18), rgba(115, 123, 255, .22));
+      border: 1px solid rgba(86, 163, 255, .22);
+      color: #8ab8ff;
+      text-transform: uppercase;
+    }
+
+    .rg-name-text {
+      font-weight: 700;
+      color: #edf2ff;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rg-victims {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: #56a3ff;
+    }
+
+    .rg-victims.high {
+      color: #ff6d7a;
+    }
+
+    .rg-victims.mid {
+      color: #ffbe5c;
+    }
+
+    .rg-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+
+    .rg-chip.active {
+      background: rgba(39, 211, 138, .13);
+      color: #27d38a;
+      border: 1px solid rgba(39, 211, 138, .28);
+    }
+
+    .rg-chip.inactive {
+      background: rgba(255, 109, 122, .12);
+      color: #ff6d7a;
+      border: 1px solid rgba(255, 109, 122, .26);
+    }
+
+    .rg-chip.unknown {
+      background: rgba(127, 149, 200, .10);
+      color: #7f95c8;
+      border: 1px solid rgba(127, 149, 200, .22);
+    }
+
+    .rg-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+
+    .active .rg-dot {
+      background: #27d38a;
+      box-shadow: 0 0 6px #27d38a;
+      animation: rgpulse 2s infinite;
+    }
+
+    .inactive .rg-dot {
+      background: #ff6d7a;
+    }
+
+    .unknown .rg-dot {
+      background: #7f95c8;
+    }
+
+    @keyframes rgpulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .35
+      }
+    }
+
+    .tg-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(38, 176, 255, .10);
+      color: #5ad1ff;
+      border: 1px solid rgba(38, 176, 255, .22);
+      text-decoration: none;
+      transition: background .13s;
+    }
+
+    .tg-link:hover {
+      background: rgba(38, 176, 255, .22);
+    }
+
+    /* ── 스켈레톤 ────────────────────────────────────────── */
+    @keyframes rgskel {
+      0% {
+        background-position: -400px 0
+      }
+
+      100% {
+        background-position: 400px 0
+      }
+    }
+
+    .rg-skel {
+      display: inline-block;
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .11) 50%, rgba(255, 255, 255, .05) 75%);
+      background-size: 400px 100%;
+      animation: rgskel 1.4s infinite;
+    }
+
+    /* ── 페이지네이션 ────────────────────────────────────── */
+    .rg-pager {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+
+    .rg-pager button {
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      background: rgba(255, 255, 255, .04);
+      color: #a3b1d2;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .13s;
+    }
+
+    .rg-pager button:hover:not(:disabled) {
+      background: rgba(255, 255, 255, .11);
+      color: #edf2ff;
+    }
+
+    .rg-pager button:disabled {
+      opacity: .3;
+      cursor: default;
+    }
+
+    .rg-pager-info {
+      font-size: 12px;
+      color: #7f95c8;
+    }
+
+    /* ── 드로어 ─────────────────────────────────────────── */
+    .rg-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0, 0, 0, .55);
+      backdrop-filter: blur(4px);
+    }
+
+    .rg-overlay.open {
+      display: block;
+    }
+
+    .rg-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 420px;
+      max-width: 96vw;
+      height: 100vh;
+      overflow-y: auto;
+      background: linear-gradient(180deg, #0c1830, #07111f);
+      border-left: 1px solid rgba(255, 255, 255, .09);
+      padding: 28px 24px 40px;
+      box-shadow: -20px 0 60px rgba(0, 0, 0, .55);
+      transform: translateX(100%);
+      transition: transform .22s ease;
+    }
+
+    .rg-overlay.open .rg-drawer {
+      transform: translateX(0);
+    }
+
+    .rg-drawer-close {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      background: rgba(255, 255, 255, .07);
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 8px;
+      color: #7f95c8;
+      font-size: 13px;
+      padding: 5px 12px;
+      cursor: pointer;
+    }
+
+    .rg-drawer-close:hover {
+      background: rgba(255, 255, 255, .14);
+      color: #edf2ff;
+    }
+
+    .rg-drawer-name {
+      font-size: 20px;
+      font-weight: 900;
+      color: #edf2ff;
+      margin-bottom: 6px;
+    }
+
+    .rg-sep {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, .07);
+      margin: 16px 0;
+    }
+
+    .rg-section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      font-weight: 900;
+      color: #5679ff;
+      margin-bottom: 10px;
+    }
+
+    .rg-drow {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .05);
+      font-size: 13px;
+    }
+
+    .rg-drow:last-child {
+      border-bottom: none;
+    }
+
+    .rg-drow-key {
+      color: #7f95c8;
+      font-weight: 700;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .rg-drow-val {
+      color: #edf2ff;
+      text-align: right;
+      word-break: break-all;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+    }
+
+    .rg-drow-val a {
+      color: #56a3ff;
+      text-decoration: none;
+    }
+
+    .rg-drow-val a:hover {
+      text-decoration: underline;
+    }
+
+    /* ── 툴바 ────────────────────────────────────────────── */
+    .rg-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    .rg-toolbar .control {
+      flex: 1;
+    }
+
+    .rg-count-pill {
+      font-size: 11px;
+      font-weight: 800;
+      color: #7f95c8;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .09);
+      border-radius: 999px;
+      padding: 3px 12px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 860px) {
+      .rg-stat-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .rg-table tbody td:nth-child(5),
+      .rg-table thead th:nth-child(5) {
+        display: none;
+      }
+    }
+  </style>
 </head>
+
 <body>
-<script src="/ui/assets/common.js"></script>
-<script>
-installPage({
-  pageKey: 'ransomware-groups',
-  heroEyebrow: 'Threat Tracking',
-  heroTitle: 'Ransomware Groups',
-  heroDesc: 'ransomware.live API 기반으로 활동 중인 랜섬웨어 조직 프로파일을 추적한다. 조직별 피해 기업 수, 활동 상태, 텔레그램 연결 정보를 한눈에 확인한다.',
-  heroMeta: ['ransomware.live', 'live feed', 'group profiling'],
-  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
-  sidebarExtra: `
-    <div class="card-title">Group Filters</div>
-    <label class="field-label" for="statusFilter">Status</label>
-    <select id="statusFilter" class="control">
-      <option value="">전체</option>
-      <option value="active">Active</option>
-      <option value="inactive">Inactive</option>
-    </select>
-    <label class="field-label" for="groupSearch">검색</label>
-    <input id="groupSearch" class="control" type="text" placeholder="조직명 검색" />`,
-  mainHtml: `
-    <div class="hidden empty" id="errorBox"></div>
-    <section class="panel" style="padding:24px">
-      <div class="card-title">Ransomware Group Registry</div>
-      <p class="muted" style="margin-bottom:16px;font-size:13px">ransomware.live API 연동 후 실시간 데이터가 표시됩니다. 현재는 플레이스홀더 상태입니다.</p>
-      <div id="groupTable">
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
-          <span>Group Name</span><span>Victims</span><span>Status</span><span>Telegram</span><span>Last Seen</span>
-        </div>
-        <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
-          ⚡ API 연동 대기 중 — ransomware.live 데이터가 여기에 표시됩니다
-        </div>
-      </div>
-    </section>`
-});
+  <script src="/ui/assets/common.js"></script>
+  <script>
+    // ── 전역 상태 (installPage 전에 선언해야 mainHtml 문자열에서 함수 호출 불가 문제 방지) ──
+    var RG_PAGE_SIZE = 25;
+    var rgAll = [];
+    var rgFiltered = [];
+    var rgPage = 1;
+    var rgSort = { key: 'victims', dir: -1 };
 
-// 추후 API 연동 자리
-async function loadGroups() {
-  // TODO: fetch('/api/ransomware/groups') 연동
-  setUpdated(nowStr());
-}
+    // ── 페이지 골격 설치 ─────────────────────────────────────
+    installPage({
+      pageKey: 'ransomware-groups',
+      heroEyebrow: 'Threat Tracking',
+      heroTitle: 'Ransomware Groups',
+      heroDesc: 'ransomware.live API 기반으로 활동 중인 랜섬웨어 조직 프로파일을 추적한다. 조직별 피해 기업 수, 활동 상태, 텔레그램 연결 정보를 한눈에 확인한다.',
+      heroMeta: ['ransomware.live /v2/groups', 'live feed', 'group profiling'],
+      actionHtml: '<button class="btn primary" id="heroRefreshBtn">현행화</button>',
 
-document.addEventListener('DOMContentLoaded', () => {
-  attachRefresh(loadGroups);
-  loadGroups();
-});
-</script>
+      sidebarExtra: [
+        '<div class="card-title">Group Filters</div>',
+        '<label class="field-label" for="rgStatusFilter">Status</label>',
+        '<select id="rgStatusFilter" class="control">',
+        '  <option value="">전체</option>',
+        '  <option value="active">Active</option>',
+        '  <option value="inactive">Inactive</option>',
+        '</select>',
+        '<label class="field-label" for="rgTgFilter" style="margin-top:10px">Telegram</label>',
+        '<select id="rgTgFilter" class="control">',
+        '  <option value="">전체</option>',
+        '  <option value="yes">있음</option>',
+        '  <option value="no">없음</option>',
+        '</select>',
+        '<label class="field-label" for="rgSearch" style="margin-top:10px">조직명 검색</label>',
+        '<input id="rgSearch" class="control" type="text" placeholder="조직명 검색..." />',
+      ].join(''),
+
+      mainHtml: [
+        '<div class="hidden empty" id="errorBox"></div>',
+
+        // 집계 통계
+        '<div class="rg-stat-row">',
+        '  <div class="rg-stat blue"><div class="rg-stat-val" id="rgStatTotal">—</div><div class="rg-stat-label">Total Groups</div></div>',
+        '  <div class="rg-stat green"><div class="rg-stat-val" id="rgStatActive">—</div><div class="rg-stat-label">Active</div></div>',
+        '  <div class="rg-stat red"><div class="rg-stat-val" id="rgStatInactive">—</div><div class="rg-stat-label">Inactive</div></div>',
+        '  <div class="rg-stat amber"><div class="rg-stat-val" id="rgStatVictims">—</div><div class="rg-stat-label">Total Victims</div></div>',
+        '</div>',
+
+        // 테이블 패널
+        '<section class="panel" style="padding:24px">',
+        '  <div class="panel-head">',
+        '    <div>',
+        '      <div class="panel-title">Ransomware Group Registry</div>',
+        '      <div class="panel-sub" id="rgTableSub">데이터 로드 중...</div>',
+        '    </div>',
+        '    <span class="rg-count-pill" id="rgCountPill">0 groups</span>',
+        '  </div>',
+
+        '  <div class="rg-toolbar">',
+        '    <input id="rgInlineSearch" class="control" type="text" placeholder="인라인 검색 (이름·설명)" />',
+        '  </div>',
+
+        '  <div class="table-wrap">',
+        '    <table class="rg-table" id="rgTable">',
+        '      <thead><tr>',
+        '        <th data-col="name">Group Name ↕</th>',
+        '        <th data-col="victims" class="rg-sorted">Victims ↓</th>',
+        '        <th data-col="status">Status ↕</th>',
+        '        <th>Telegram</th>',
+        '        <th>Description</th>',
+        '      </tr></thead>',
+        '      <tbody id="rgTableBody"></tbody>',
+        '    </table>',
+        '    <div class="empty hidden" id="rgEmpty">조건에 맞는 조직이 없습니다.</div>',
+        '  </div>',
+
+        '  <div class="rg-pager" id="rgPager"></div>',
+        '</section>',
+
+        // 드로어
+        '<div class="rg-overlay" id="rgOverlay">',
+        '  <div class="rg-drawer">',
+        '    <button class="rg-drawer-close" id="rgDrawerClose">✕ 닫기</button>',
+        '    <div id="rgDrawerContent"></div>',
+        '  </div>',
+        '</div>',
+      ].join('')
+    });
+
+    // ── 유틸 함수 ─────────────────────────────────────────────
+    function rgVictims(g) {
+      return Number(g && g.meta && g.meta.post_count != null
+        ? g.meta.post_count
+        : (g.post_count != null ? g.post_count : (g.victims != null ? g.victims : 0)));
+    }
+
+    function rgStatus(g) {
+      if (typeof g.active === 'boolean') return g.active ? 'active' : 'inactive';
+      var s = String(g.active != null ? g.active : (g.status != null ? g.status : '')).toLowerCase();
+      if (s === 'true' || s === 'active') return 'active';
+      if (s === 'false' || s === 'inactive') return 'inactive';
+      return 'unknown';
+    }
+
+    function rgVicClass(n) {
+      if (n >= 200) return 'high';
+      if (n >= 50) return 'mid';
+      return '';
+    }
+
+    function rgChip(status) {
+      var labels = { active: 'Active', inactive: 'Inactive', unknown: 'Unknown' };
+      return '<span class="rg-chip ' + status + '"><span class="rg-dot"></span>' + (labels[status] || status) + '</span>';
+    }
+
+    function rgTgCell(g) {
+      var raw = g.telegram || g.telegram_url || '';
+      if (!raw) return '<span style="color:#3d5070;font-size:12px">—</span>';
+      var href = raw.indexOf('http') === 0 ? raw : 'https://t.me/' + raw.replace(/^@/, '');
+      return '<a class="tg-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">✈ Telegram</a>';
+    }
+
+    function rgSkelRow() {
+      return '<tr style="pointer-events:none">' +
+        ['60%', '30%', '55%', '40%', '80%'].map(function (w) {
+          return '<td><span class="rg-skel" style="width:' + w + '"></span></td>';
+        }).join('') + '</tr>';
+    }
+
+    // ── 스켈레톤 ─────────────────────────────────────────────
+    function showSkeleton() {
+      var tbody = document.getElementById('rgTableBody');
+      if (tbody) tbody.innerHTML = Array(10).fill(rgSkelRow()).join('');
+      var empty = document.getElementById('rgEmpty');
+      if (empty) empty.classList.add('hidden');
+    }
+
+    // ── 통계 갱신 ─────────────────────────────────────────────
+    function updateStats(groups) {
+      var active = groups.filter(function (g) { return rgStatus(g) === 'active'; }).length;
+      var inactive = groups.filter(function (g) { return rgStatus(g) === 'inactive'; }).length;
+      var victims = groups.reduce(function (s, g) { return s + rgVictims(g); }, 0);
+      var el;
+      el = document.getElementById('rgStatTotal'); if (el) el.textContent = groups.length.toLocaleString();
+      el = document.getElementById('rgStatActive'); if (el) el.textContent = active.toLocaleString();
+      el = document.getElementById('rgStatInactive'); if (el) el.textContent = inactive.toLocaleString();
+      el = document.getElementById('rgStatVictims'); if (el) el.textContent = victims.toLocaleString();
+    }
+
+    // ── 필터·정렬 ─────────────────────────────────────────────
+    function applyFilter() {
+      var status = (document.getElementById('rgStatusFilter') || {}).value || '';
+      var tg = (document.getElementById('rgTgFilter') || {}).value || '';
+      var q1 = ((document.getElementById('rgSearch') || {}).value || '').trim().toLowerCase();
+      var q2 = ((document.getElementById('rgInlineSearch') || {}).value || '').trim().toLowerCase();
+      var q = q1 || q2;
+
+      rgFiltered = rgAll.filter(function (g) {
+        if (status && rgStatus(g) !== status) return false;
+        if (tg === 'yes' && !(g.telegram || g.telegram_url)) return false;
+        if (tg === 'no' && (g.telegram || g.telegram_url)) return false;
+        if (q) {
+          var meta = g.meta || {};
+          var hay = [g.name, meta.title, meta.description, meta.meta_description]
+            .map(function (v) { return String(v || '').toLowerCase(); }).join(' ');
+          if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+      });
+
+      rgFiltered.sort(function (a, b) {
+        if (rgSort.key === 'victims') {
+          return rgSort.dir * (rgVictims(a) - rgVictims(b));
+        }
+        if (rgSort.key === 'name') {
+          var na = (a.name || '').toLowerCase(), nb = (b.name || '').toLowerCase();
+          return rgSort.dir * (na < nb ? -1 : na > nb ? 1 : 0);
+        }
+        if (rgSort.key === 'status') {
+          var sa = rgStatus(a), sb = rgStatus(b);
+          return rgSort.dir * (sa < sb ? -1 : sa > sb ? 1 : 0);
+        }
+        return 0;
+      });
+
+      rgPage = 1;
+      renderTable();
+    }
+
+    // ── 테이블 렌더 ──────────────────────────────────────────
+    function renderTable() {
+      var tbody = document.getElementById('rgTableBody');
+      var emptyEl = document.getElementById('rgEmpty');
+      if (!tbody) return;
+
+      var start = (rgPage - 1) * RG_PAGE_SIZE;
+      var slice = rgFiltered.slice(start, start + RG_PAGE_SIZE);
+
+      if (rgFiltered.length === 0) {
+        tbody.innerHTML = '';
+        if (emptyEl) emptyEl.classList.remove('hidden');
+      } else {
+        if (emptyEl) emptyEl.classList.add('hidden');
+        tbody.innerHTML = slice.map(function (g) {
+          var name = g.name || '(unknown)';
+          var victims = rgVictims(g);
+          var status = rgStatus(g);
+          var meta = g.meta || {};
+          var desc = meta.description || meta.meta_description || g.description || '';
+          var descShort = desc.length > 80 ? desc.slice(0, 80) + '…' : desc;
+          return [
+            '<tr data-name="' + escapeHtml(name) + '">',
+            '  <td><div class="rg-name-wrap">',
+            '    <div class="rg-avatar">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>',
+            '    <span class="rg-name-text">' + escapeHtml(name) + '</span>',
+            '  </div></td>',
+            '  <td><span class="rg-victims ' + rgVicClass(victims) + '">' + victims.toLocaleString() + '</span></td>',
+            '  <td>' + rgChip(status) + '</td>',
+            '  <td>' + rgTgCell(g) + '</td>',
+            '  <td style="color:#7f95c8;font-size:12px">' + escapeHtml(descShort || '—') + '</td>',
+            '</tr>',
+          ].join('');
+        }).join('');
+
+        // 행 클릭 → 드로어
+        Array.from(tbody.querySelectorAll('tr[data-name]')).forEach(function (tr) {
+          tr.addEventListener('click', function () {
+            var g = rgAll.find(function (x) { return x.name === tr.dataset.name; });
+            if (g) openDrawer(g);
+          });
+        });
+      }
+
+      // 카운트 / 부제
+      var sub = document.getElementById('rgTableSub');
+      var pill = document.getElementById('rgCountPill');
+      if (sub) sub.textContent = rgFiltered.length.toLocaleString() + '개 조직 (전체 ' + rgAll.length.toLocaleString() + '개)';
+      if (pill) pill.textContent = rgFiltered.length.toLocaleString() + ' groups';
+
+      // 정렬 헤더 표시
+      var colLabel = { name: 'Group Name', victims: 'Victims', status: 'Status' };
+      Array.from(document.querySelectorAll('#rgTable thead th[data-col]')).forEach(function (th) {
+        var col = th.dataset.col;
+        th.classList.toggle('rg-sorted', col === rgSort.key);
+        if (col === rgSort.key) {
+          th.textContent = colLabel[col] + (rgSort.dir === -1 ? ' ↓' : ' ↑');
+        } else {
+          th.textContent = colLabel[col] + ' ↕';
+        }
+      });
+
+      renderPager();
+    }
+
+    // ── 페이지네이션 ─────────────────────────────────────────
+    function renderPager() {
+      var pager = document.getElementById('rgPager');
+      if (!pager) return;
+      var total = Math.max(1, Math.ceil(rgFiltered.length / RG_PAGE_SIZE));
+      if (total <= 1) { pager.innerHTML = ''; return; }
+      pager.innerHTML = [
+        '<button id="rgPrevBtn"' + (rgPage <= 1 ? ' disabled' : '') + '>← 이전</button>',
+        '<span class="rg-pager-info">' + rgPage + ' / ' + total + '</span>',
+        '<button id="rgNextBtn"' + (rgPage >= total ? ' disabled' : '') + '>다음 →</button>',
+      ].join('');
+      document.getElementById('rgPrevBtn').addEventListener('click', function () { rgPage--; renderTable(); window.scrollTo(0, 0); });
+      document.getElementById('rgNextBtn').addEventListener('click', function () { rgPage++; renderTable(); window.scrollTo(0, 0); });
+    }
+
+    // ── 드로어 ───────────────────────────────────────────────
+    function openDrawer(g) {
+      var overlay = document.getElementById('rgOverlay');
+      var content = document.getElementById('rgDrawerContent');
+      if (!overlay || !content) return;
+
+      var name = g.name || '(unknown)';
+      var victims = rgVictims(g);
+      var status = rgStatus(g);
+      var meta = g.meta || {};
+      var tgRaw = g.telegram || g.telegram_url || '';
+      var tgHref = tgRaw ? (tgRaw.indexOf('http') === 0 ? tgRaw : 'https://t.me/' + tgRaw.replace(/^@/, '')) : '';
+      var onion = meta.url || g.url || g.onion_url || '';
+      var desc = meta.description || meta.meta_description || g.description || '';
+      var title = meta.title || '';
+
+      function drow(key, valHtml) {
+        return '<div class="rg-drow"><span class="rg-drow-key">' + key + '</span><span class="rg-drow-val">' + valHtml + '</span></div>';
+      }
+
+      // 알 수 없는 추가 필드 자동 표시
+      var knownKeys = ['name', 'active', 'status', 'telegram', 'telegram_url', 'description', 'url', 'onion_url', 'meta', 'post_count', 'victims'];
+      var extras = Object.keys(g)
+        .filter(function (k) { return knownKeys.indexOf(k) === -1; })
+        .map(function (k) {
+          var v = g[k];
+          return drow(k, escapeHtml(typeof v === 'object' ? JSON.stringify(v) : String(v != null ? v : '—')));
+        }).join('');
+
+      content.innerHTML = [
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-right:60px">',
+        '  <div class="rg-avatar" style="width:40px;height:40px;font-size:16px">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>',
+        '  <div>',
+        '    <div class="rg-drawer-name">' + escapeHtml(name) + '</div>',
+        '    <div style="margin-top:4px">' + rgChip(status) + '</div>',
+        '  </div>',
+        '</div>',
+        '<hr class="rg-sep">',
+        '<div class="rg-section-label">기본 정보</div>',
+        drow('피해 기업 수', '<span class="rg-victims ' + rgVicClass(victims) + '">' + victims.toLocaleString() + '건</span>'),
+        title ? drow('제목', escapeHtml(title)) : '',
+        desc ? drow('설명', '<span style="white-space:normal;line-height:1.5;text-align:left">' + escapeHtml(desc) + '</span>') : '',
+        '<hr class="rg-sep">',
+        '<div class="rg-section-label">연결 정보</div>',
+        drow('Telegram', tgHref
+          ? '<a href="' + escapeHtml(tgHref) + '" target="_blank" rel="noopener">' + escapeHtml(tgHref) + '</a>'
+          : '<span style="color:#3d5070">없음</span>'),
+        drow('Onion URL', onion
+          ? '<a href="' + escapeHtml(onion) + '" target="_blank" rel="noopener">' + escapeHtml(onion) + '</a>'
+          : '<span style="color:#3d5070">없음</span>'),
+        extras ? '<hr class="rg-sep"><div class="rg-section-label">추가 필드</div>' + extras : '',
+      ].join('');
+
+      overlay.classList.add('open');
+    }
+
+    // ── API 로드 ──────────────────────────────────────────────
+    async function loadGroups() {
+      showSkeleton();
+
+      var res = await fetch('/api/rl/groups', { cache: 'no-store' });
+      if (!res.ok) throw new Error('/api/rl/groups → HTTP ' + res.status);
+      var data = await res.json();
+
+      // ransomware.live /v2/groups 응답: 배열 [{name, active, meta:{title,url,description,post_count,...}, telegram}, ...]
+      rgAll = Array.isArray(data) ? data
+        : Array.isArray(data.groups) ? data.groups
+          : Array.isArray(data.data) ? data.data
+            : [];
+
+      updateStats(rgAll);
+      applyFilter();
+
+      var errBox = document.getElementById('errorBox');
+      if (errBox) errBox.classList.add('hidden');
+    }
+
+    // ── 이벤트 바인딩 ─────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+      // 현행화 버튼
+      attachRefresh(function () { guardedLoad(loadGroups); });
+
+      // 사이드바 필터
+      var statusSel = document.getElementById('rgStatusFilter');
+      var tgSel = document.getElementById('rgTgFilter');
+      var searchEl = document.getElementById('rgSearch');
+      var inlineEl = document.getElementById('rgInlineSearch');
+      if (statusSel) statusSel.addEventListener('change', applyFilter);
+      if (tgSel) tgSel.addEventListener('change', applyFilter);
+      if (searchEl) searchEl.addEventListener('input', applyFilter);
+      if (inlineEl) inlineEl.addEventListener('input', applyFilter);
+
+      // 정렬 헤더 클릭
+      Array.from(document.querySelectorAll('#rgTable thead th[data-col]')).forEach(function (th) {
+        th.addEventListener('click', function () {
+          var col = th.dataset.col;
+          if (rgSort.key === col) {
+            rgSort.dir *= -1;
+          } else {
+            rgSort.key = col;
+            rgSort.dir = (col === 'victims') ? -1 : 1;
+          }
+          applyFilter();
+        });
+      });
+
+      // 드로어 닫기
+      var closeBtn = document.getElementById('rgDrawerClose');
+      var overlay = document.getElementById('rgOverlay');
+      if (closeBtn) closeBtn.addEventListener('click', function () { overlay.classList.remove('open'); });
+      if (overlay) overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.classList.remove('open'); });
+
+      // 초기 로드
+      guardedLoad(loadGroups);
+    });
+  </script>
 </body>
+
 </html>
