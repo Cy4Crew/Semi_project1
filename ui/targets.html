@@ -9,90 +9,331 @@
 <body>
 <script src="/ui/assets/common.js"></script>
 <script>
+const TARGETS_API_KEY = 'a1daaxcqexzr3tnji25unf';
+
 installPage({
   pageKey: 'targets',
   heroEyebrow: 'Collection Coverage',
   heroTitle: 'Targets Overview',
-  heroDesc: '타겟 페이지는 수정 버튼 없이도 운영 판단이 가능해야 한다. queued 여부, 마지막 큐잉, 마지막 수집, seed URL을 분리해서 상태를 읽기 쉽게 만들었다.',
-  heroMeta: ['queue 가시성', 'last fetched 점검', 'seed URL 확인'],
+  heroDesc: '타겟 추가/삭제와 현재 상태 확인을 한 화면에서 처리하는 관리 화면.',
+  heroMeta: ['target add/delete', 'queue 가시성', 'seed URL 확인'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
     <div class="card-title">Target Filters</div>
     <label class="field-label" for="enabledFilter">Enabled</label>
-    <select id="enabledFilter" class="control"><option value="">전체</option><option value="true">enabled</option><option value="false">disabled</option></select>
+    <select id="enabledFilter" class="control">
+      <option value="">전체</option>
+      <option value="true">enabled</option>
+      <option value="false">disabled</option>
+    </select>
+
     <label class="field-label" for="queueFilter">Queue State</label>
-    <select id="queueFilter" class="control"><option value="">전체</option><option value="queued">queued</option><option value="idle">idle</option><option value="never">never fetched</option></select>
+    <select id="queueFilter" class="control">
+      <option value="">전체</option>
+      <option value="queued">queued</option>
+      <option value="idle">idle</option>
+      <option value="never">never fetched</option>
+    </select>
+
     <label class="field-label" for="searchBox">검색</label>
-    <input id="searchBox" class="control" type="text" placeholder="name / seed_url" />`,
+    <input id="searchBox" class="control" type="text" placeholder="name / seed_url" />
+
+    <div class="mini-desc" style="margin-top:12px;">
+      현재 백엔드 /api/targets POST는 <strong>name</strong> 과 <strong>seed_url</strong>만 받아서
+      생성 시 enabled=false 저장은 지원하지 않는다.
+    </div>`,
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
+
+    <style>
+      .targets-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: auto;
+      }
+
+      .targets-toolbar .control,
+      .targets-toolbar .pill,
+      .targets-toolbar .btn {
+        width: auto;
+        min-width: 0;
+      }
+
+      .targets-toolbar .text-control {
+        min-width: 180px;
+      }
+
+      .targets-toolbar select.control {
+        min-width: 108px;
+      }
+
+      .targets-toolbar .btn.sm,
+      .target-row-actions .btn.sm {
+        padding: 0 14px;
+        height: 38px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .target-row-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .target-name-cell {
+        min-width: 180px;
+      }
+
+      .target-url-cell {
+        min-width: 260px;
+        word-break: break-all;
+      }
+
+      .form-note {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .inline-status {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.04);
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .inline-status.hidden {
+        display: none;
+      }
+
+      .inline-status.ok {
+        border-color: rgba(39, 211, 138, .28);
+        background: rgba(39, 211, 138, .08);
+      }
+
+      .inline-status.fail {
+        border-color: rgba(255, 109, 122, .28);
+        background: rgba(255, 109, 122, .08);
+      }
+
+      @media (max-width: 980px) {
+        .targets-toolbar {
+          width: 100%;
+          justify-content: flex-start;
+          margin-left: 0;
+        }
+      }
+    </style>
+
     <section class="grid-3" id="targetStats"></section>
+
     <section class="panel">
       <div class="panel-head">
         <div>
           <div class="panel-title">Registered Targets</div>
-          <div class="panel-sub">읽기 전용 상태 점검 화면</div>
+          <div class="panel-sub">(</div>
         </div>
-        <span class="pill" id="targetCountPill">0 rows</span>
+
+        <div class="targets-toolbar pagination">
+          <input id="targetNameInput" class="control text-control" type="text" placeholder="name 입력칸" />
+          <input id="targetUrlInput" class="control text-control" type="text" placeholder="url 입력칸" />
+          <select id="targetEnabledInput" class="control" title="enable or disable">
+            <option value="true" selected>enabled</option>
+            <option value="false">disabled</option>
+          </select>
+          <button class="btn primary sm" id="addTargetBtn" type="button">Add</button>
+          <button class="btn ghost sm" id="resetTargetBtn" type="button">초기화</button>
+          <button class="control" id="prevBtnTop" type="button">Prev</button>
+          <span class="pill" id="pagePillTop">Page 1 / 1</span>
+          <button class="control" id="nextBtnTop" type="button">Next</button>
+          <select id="pageSizeSelect" class="control" title="rows per page">
+            <option value="10">10 rows</option>
+            <option value="30" selected>30 rows</option>
+            <option value="50">50 rows</option>
+            <option value="100">100 rows</option>
+            <option value="120">120 rows</option>
+          </select>
+          <span class="pill" id="targetCountPill">Total 0</span>
+        </div>
       </div>
+
+      <div id="targetActionStatus" class="inline-status hidden"></div>
+      <div class="form-note">삭제는 각 행의 Delete 버튼으로 처리된다. 현재 백엔드 기준으로 새 타겟 생성 시 enabled=false 저장은 미지원이다.</div>
+
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>ID</th><th>Name</th><th>Seed URL</th><th>Enabled</th><th>Queue</th><th>Last Queued</th><th>Last Fetched</th></tr>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Seed URL</th>
+              <th>Enabled</th>
+              <th>Queue</th>
+              <th>Last Queued</th>
+              <th>Last Fetched</th>
+              <th>Action</th>
+            </tr>
           </thead>
           <tbody id="targetsBody"></tbody>
         </table>
         <div class="empty hidden" id="targetsEmpty">표시할 타겟이 없다.</div>
       </div>
+
+      <div class="pagination">
+        <button class="control" id="prevBtn" type="button">Prev</button>
+        <span class="pill" id="pagePill">Page 1 / 1</span>
+        <button class="control" id="nextBtn" type="button">Next</button>
+      </div>
     </section>`
 });
 
 let rows = [];
+let currentPage = 1;
+let pageSize = 30;
+let isSubmitting = false;
+let isDeleting = false;
+
+function actionStatusEl() {
+  return document.getElementById('targetActionStatus');
+}
+
+function showActionStatus(message, type = 'ok') {
+  const el = actionStatusEl();
+  el.textContent = message;
+  el.classList.remove('hidden', 'ok', 'fail');
+  el.classList.add(type === 'fail' ? 'fail' : 'ok');
+}
+
+function clearActionStatus() {
+  const el = actionStatusEl();
+  el.textContent = '';
+  el.classList.add('hidden');
+  el.classList.remove('ok', 'fail');
+}
+
+function targetHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-api-key': TARGETS_API_KEY,
+  };
+}
+
+async function apiRequest(url, options = {}) {
+  const res = await fetch(url, {
+    cache: 'no-store',
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_) {
+    data = text;
+  }
+
+  if (!res.ok) {
+    const detail = typeof data === 'object' && data && 'detail' in data ? data.detail : (text || `HTTP ${res.status}`);
+    throw new Error(`${res.status} ${detail}`);
+  }
+
+  return data;
+}
 
 function filteredRows() {
   const enabled = document.getElementById('enabledFilter').value.trim().toLowerCase();
   const queue = document.getElementById('queueFilter').value.trim().toLowerCase();
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
+
   return rows.filter(r => {
     const enabledOk = !enabled || String(!!r.enabled) === enabled;
     const queueState = !r.last_fetched_at ? 'never' : (r.is_queued ? 'queued' : 'idle');
-    const queueOk = !queue || queueState === queue;
-    const joined = [r.name, r.seed_url].map(v => String(v || '').toLowerCase()).join(' ');
-    return enabledOk && queueOk && (!q || joined.includes(q));
+    const joined = [r.id, r.name, r.seed_url].map(v => String(v || '').toLowerCase()).join(' ');
+    return enabledOk && (!queue || queueState === queue) && (!q || joined.includes(q));
   });
+}
+
+function pagedRows(list) {
+  const start = (currentPage - 1) * pageSize;
+  return list.slice(start, start + pageSize);
+}
+
+function totalPages(list) {
+  return Math.max(1, Math.ceil(list.length / pageSize));
+}
+
+function syncPageState(list) {
+  const total = totalPages(list);
+  if (currentPage > total) currentPage = total;
+  if (currentPage < 1) currentPage = 1;
+
+  const label = `Page ${currentPage} / ${total}`;
+  document.getElementById('pagePill').textContent = label;
+  document.getElementById('pagePillTop').textContent = label;
+
+  const prevDisabled = currentPage <= 1;
+  const nextDisabled = currentPage >= total;
+
+  document.getElementById('prevBtn').disabled = prevDisabled;
+  document.getElementById('prevBtnTop').disabled = prevDisabled;
+  document.getElementById('nextBtn').disabled = nextDisabled;
+  document.getElementById('nextBtnTop').disabled = nextDisabled;
 }
 
 function renderStats() {
   const enabledCount = rows.filter(r => r.enabled).length;
+  const disabledCount = rows.filter(r => !r.enabled).length;
   const queuedCount = rows.filter(r => r.is_queued).length;
   const neverCount = rows.filter(r => !r.last_fetched_at).length;
   const fetchedCount = rows.filter(r => !!r.last_fetched_at).length;
+
   renderMetricCards(document.getElementById('targetStats'), [
     { label: 'Targets', value: rows.length, foot: '총 등록 수' },
     { label: 'Enabled', value: enabledCount, foot: 'enabled=true' },
+    { label: 'Disabled', value: disabledCount, foot: 'enabled=false' },
     { label: 'Queued', value: queuedCount, foot: 'is_queued=true' },
-    { label: 'Fetched', value: fetchedCount, foot: 'last_fetched_at 존재' },
     { label: 'Never Fetched', value: neverCount, foot: '한 번도 수집 안 됨' },
+    { label: 'Fetched', value: fetchedCount, foot: 'last_fetched_at 존재' },
   ]);
+}
+
+function deleteButtonHtml(row) {
+  return `<div class="target-row-actions"><button class="btn ghost sm delete-target-btn" type="button" data-target-id="${escapeHtml(row.id)}" data-target-name="${escapeHtml(row.name || '')}">Delete</button></div>`;
 }
 
 function renderTable() {
   const list = filteredRows();
-  document.getElementById('targetCountPill').textContent = `${list.length} rows`;
-  document.getElementById('targetsBody').innerHTML = list.map(r => {
+  syncPageState(list);
+  const visible = pagedRows(list);
+
+  document.getElementById('targetCountPill').textContent = `Total ${list.length}`;
+
+  document.getElementById('targetsBody').innerHTML = visible.map(r => {
     const queueState = !r.last_fetched_at ? 'never' : (r.is_queued ? 'queued' : 'idle');
     return `
       <tr>
         <td>${escapeHtml(r.id)}</td>
-        <td>${escapeHtml(r.name || '-')}</td>
-        <td>${r.seed_url ? `<a class="link" target="_blank" href="${escapeHtml(r.seed_url)}">${escapeHtml(r.seed_url)}</a>` : '<span class="muted">-</span>'}</td>
+        <td class="target-name-cell">${escapeHtml(r.name || '-')}</td>
+        <td class="target-url-cell">${r.seed_url ? `<a class="link" target="_blank" href="${escapeHtml(r.seed_url)}">${escapeHtml(r.seed_url)}</a>` : '<span class="muted">-</span>'}</td>
         <td><span class="badge ${r.enabled ? 'ok' : 'fail'}">${r.enabled ? 'enabled' : 'disabled'}</span></td>
         <td><span class="badge ${queueState === 'queued' ? 'warn' : (queueState === 'never' ? 'fail' : 'info')}">${queueState}</span></td>
         <td>${escapeHtml(fmtDate(r.last_queued_at))}</td>
         <td>${escapeHtml(fmtDate(r.last_fetched_at))}<div class="small muted">${escapeHtml(fmtAgo(r.last_fetched_at))}</div></td>
+        <td>${deleteButtonHtml(r)}</td>
       </tr>`;
   }).join('');
-  document.getElementById('targetsEmpty').classList.toggle('hidden', list.length !== 0);
+
+  document.getElementById('targetsEmpty').classList.toggle('hidden', visible.length !== 0);
+  bindDeleteButtons();
 }
 
 async function loadTargets() {
@@ -101,10 +342,146 @@ async function loadTargets() {
   renderTable();
 }
 
-['enabledFilter','queueFilter'].forEach(id => document.getElementById(id).addEventListener('change', renderTable));
-document.getElementById('searchBox').addEventListener('input', renderTable);
+function resetToFirstPage() {
+  currentPage = 1;
+  renderTable();
+}
+
+function resetForm() {
+  document.getElementById('targetNameInput').value = '';
+  document.getElementById('targetUrlInput').value = '';
+  document.getElementById('targetEnabledInput').value = 'true';
+  clearActionStatus();
+}
+
+async function addTarget() {
+  if (isSubmitting) return;
+
+  const name = document.getElementById('targetNameInput').value.trim();
+  const seedUrl = document.getElementById('targetUrlInput').value.trim();
+  const enabled = document.getElementById('targetEnabledInput').value === 'true';
+
+  if (!name) {
+    showActionStatus('name 값을 입력해야 한다.', 'fail');
+    document.getElementById('targetNameInput').focus();
+    return;
+  }
+
+  if (!seedUrl) {
+    showActionStatus('url 값을 입력해야 한다.', 'fail');
+    document.getElementById('targetUrlInput').focus();
+    return;
+  }
+
+  if (!/^https?:\/\//i.test(seedUrl) && !/^http:\/\/.*\.onion(?:\/|$)/i.test(seedUrl)) {
+    showActionStatus('url은 http:// 또는 https:// 로 시작해야 한다.', 'fail');
+    document.getElementById('targetUrlInput').focus();
+    return;
+  }
+
+  if (!enabled) {
+    showActionStatus('현재 백엔드 /api/targets POST는 enabled=false 생성이 안 된다. enabled 로 추가한 뒤 백엔드 확장이 필요하다.', 'fail');
+    return;
+  }
+
+  isSubmitting = true;
+  document.getElementById('addTargetBtn').disabled = true;
+
+  try {
+    await apiRequest(API.targets, {
+      method: 'POST',
+      headers: targetHeaders(),
+      body: JSON.stringify({ name, seed_url: seedUrl }),
+    });
+
+    showActionStatus(`타겟 추가 완료: ${name}`, 'ok');
+    resetForm();
+    await loadTargets();
+  } catch (err) {
+    showActionStatus(`타겟 추가 실패: ${err.message}`, 'fail');
+  } finally {
+    isSubmitting = false;
+    document.getElementById('addTargetBtn').disabled = false;
+  }
+}
+
+async function deleteTarget(targetId, targetName) {
+  if (isDeleting) return;
+  const ok = window.confirm(`정말 삭제할까?\n#${targetId} ${targetName || ''}`.trim());
+  if (!ok) return;
+
+  isDeleting = true;
+  try {
+    await apiRequest(`${API.targets}/${encodeURIComponent(targetId)}`, {
+      method: 'DELETE',
+      headers: { 'x-api-key': TARGETS_API_KEY },
+    });
+    showActionStatus(`타겟 삭제 완료: #${targetId}`, 'ok');
+    await loadTargets();
+  } catch (err) {
+    showActionStatus(`타겟 삭제 실패: ${err.message}`, 'fail');
+  } finally {
+    isDeleting = false;
+  }
+}
+
+function bindDeleteButtons() {
+  document.querySelectorAll('.delete-target-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      deleteTarget(btn.dataset.targetId, btn.dataset.targetName || '');
+    });
+  });
+}
+
+['enabledFilter', 'queueFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', resetToFirstPage);
+});
+
+document.getElementById('searchBox').addEventListener('input', resetToFirstPage);
+
+document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+  pageSize = Number(e.target.value) || 30;
+  currentPage = 1;
+  renderTable();
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage -= 1;
+    renderTable();
+  }
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  const total = totalPages(filteredRows());
+  if (currentPage < total) {
+    currentPage += 1;
+    renderTable();
+  }
+});
+
+document.getElementById('prevBtnTop').addEventListener('click', () => {
+  document.getElementById('prevBtn').click();
+});
+
+document.getElementById('nextBtnTop').addEventListener('click', () => {
+  document.getElementById('nextBtn').click();
+});
+
+document.getElementById('addTargetBtn').addEventListener('click', addTarget);
+document.getElementById('resetTargetBtn').addEventListener('click', resetForm);
+document.getElementById('targetNameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') addTarget();
+});
+document.getElementById('targetUrlInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') addTarget();
+});
+
 attachRefresh(() => guardedLoad(loadTargets));
 guardedLoad(loadTargets);
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
 </script>
 </body>
 </html>

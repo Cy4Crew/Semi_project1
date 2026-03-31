@@ -13,7 +13,7 @@ installPage({
   pageKey: 'watchlist',
   heroEyebrow: 'Detection Rules',
   heroTitle: 'Watchlist Explorer',
-  heroDesc: '워치리스트는 수정 화면이 아니라도 충분히 검토 가능해야 한다. 타입 분포, regex 비중, 최근 히트 연결 상태를 따로 보여준다.',
+  heroDesc: '워치리스트는 수정 화면이 아니라 타입 분포, regex 비중, 최근 히트 상태를 보여주는 화면.',
   heroMeta: ['rules 분포', 'regex 구분', 'hit 연결'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -114,6 +114,10 @@ document.getElementById('searchBox').addEventListener('input', render);
 attachRefresh(() => guardedLoad(loadWatchlist));
 window.addEventListener('resize', render);
 guardedLoad(loadWatchlist);
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
+</script>
 </script>
 </body>
 </html>

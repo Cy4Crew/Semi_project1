@@ -13,7 +13,7 @@ installPage({
   pageKey: 'hits',
   heroEyebrow: 'Detection Review',
   heroTitle: 'Hits Console',
-  heroDesc: '탐지 이벤트를 리스트가 아니라 이동 가능한 작업 화면으로 정리했다. 클릭하면 선택을 저장하고, 같은 IOC·같은 URL·관련 알림 기준으로 바로 Investigation으로 이어진다.',
+  heroDesc: '탐지 이벤트를 통해 관련 정보를 볼수있는 화면.',
   heroMeta: ['flow refined', 'priority badges', 'investigation handoff', 'theme aware'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -27,28 +27,90 @@ installPage({
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
     <div id="selectedBanner"></div>
+
+    <style>
+  .hits-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .hits-top-actions .control,
+  .hits-top-actions .pill {
+    width: auto;
+    min-width: 0;
+  }
+
+  /* 추가 시작 */
+  .detail-card {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .detail-card.dragging-scroll {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  @media (max-width: 700px) {
+    .detail-card {
+      max-height: 60vh;
+    }
+  }
+  /* 추가 끝 */
+
+  @media (max-width: 700px) {
+    .hits-top-actions {
+      width: 100%;
+      justify-content: flex-start;
+      margin-left: 0;
+    }
+  }
+</style>
+
     <section class="split">
-      <section class="panel">
+      <section class="panel" id="hitsPanel">
         <div class="panel-head">
           <div>
             <div class="panel-title">Recent Hits</div>
-            <div class="panel-sub">행 클릭 시 Investigation으로 이동하고, 마우스를 올리면 Quick Peek이 바로 바뀐다. View 버튼은 현재 페이지에서 선택 고정용이다.</div>
+            <div class="panel-sub">클릭하면 조사 화면으로 이동하고, 마우스를 올리면 미리보기를 볼 수 있다.</div>
           </div>
-          <span class="pill" id="hitCountPill">0 rows</span>
+
+          <div class="hits-top-actions pagination">
+            <button class="control" id="prevBtnTop" type="button">Prev</button>
+            <span class="pill" id="pagePillTop">Page 1</span>
+            <button class="control" id="nextBtnTop" type="button">Next</button>
+            <span class="pill" id="hitCountPill">0 rows</span>
+          </div>
         </div>
+
         <div class="toolbar">
           <input id="inlineSearch" class="control toolbar-grow" type="text" placeholder="추가 검색" />
           <span class="pill" id="pagePill">Page 1</span>
         </div>
+
         <div class="table-wrap">
           <table class="table-tight">
             <thead>
-              <tr><th>ID</th><th>Type</th><th>Label</th><th>Matched</th><th>URL</th><th>Seen</th></tr>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Matched</th>
+                <th>URL</th>
+                <th>Seen</th>
+              </tr>
             </thead>
             <tbody id="hitsBody"></tbody>
           </table>
           <div class="empty hidden" id="hitsEmpty">표시할 히트가 없다.</div>
         </div>
+
         <div class="pagination">
           <button class="control" id="prevBtn" type="button">Prev</button>
           <button class="control" id="nextBtn" type="button">Next</button>
@@ -57,23 +119,42 @@ installPage({
 
       <aside class="detail-card">
         <div class="card-title">Quick Peek</div>
-        <div id="detailBox" class="mini-desc">왼쪽 표에 마우스를 올리면 Quick Peek이 즉시 바뀐다. 행을 클릭하면 Investigation으로 이동하고, View 버튼은 현재 페이지에서 선택을 고정한다.</div>
+        <div id="detailBox" class="mini-desc">
+          왼쪽 표에 마우스를 올리면 Quick Peek이 즉시 바뀐다.
+          panel 밖으로 나가면 마지막으로 본 항목으로 유지된다.
+        </div>
       </aside>
     </section>`
+    
 });
 
-const state = { page: 1, rows: [], alerts: [], pages: [], extracted: [], selected: null, targets: [] };
+const state = {
+  page: 1,
+  rows: [],
+  alerts: [],
+  pages: [],
+  extracted: [],
+  selected: null,
+  previewed: null,
+  targets: []
+};
+
+function getCurrentPreviewRow() {
+  return state.previewed || state.selected || null;
+}
 
 function filteredRows() {
   const q = (document.getElementById('searchBox').value + ' ' + document.getElementById('inlineSearch').value).trim().toLowerCase();
   const type = document.getElementById('hitTypeFilter').value.trim().toLowerCase();
   const label = document.getElementById('hitLabelFilter').value.trim().toLowerCase();
+
   return state.rows.filter(r => {
     const typeOk = !type || String(r.watch_type || '').toLowerCase() === type;
     const labelOk = !label || String(r.label || '').toLowerCase() === label;
-    const joined = [r.id, r.watch_type, r.label, r.matched_value, r.url, r.title, r.fingerprint, r.target_id].map(v => String(v || '').toLowerCase()).join(' ');
-    const qOk = !q || joined.includes(q);
-    return typeOk && labelOk && qOk;
+    const joined = [r.id, r.watch_type, r.label, r.matched_value, r.url, r.title, r.fingerprint, r.target_id]
+      .map(v => String(v || '').toLowerCase())
+      .join(' ');
+    return typeOk && labelOk && (!q || joined.includes(q));
   });
 }
 
@@ -82,7 +163,11 @@ function relatedSets(row) {
   const sameUrl = state.rows.filter(x => String(x.url || '') === String(row.url || ''));
   const sameTarget = state.rows.filter(x => String(x.target_id || '') === String(row.target_id || '') && String(row.target_id || '') !== '');
   const samePageExtracted = state.extracted.filter(x => String(x.page_id) === String(row.page_id));
-  const relatedAlerts = state.alerts.filter(a => String(a.hit_id) === String(row.id) || String(a.matched_value || '').toLowerCase() === String(row.matched_value || '').toLowerCase() || String(a.url || '') === String(row.url || ''));
+  const relatedAlerts = state.alerts.filter(a =>
+    String(a.hit_id) === String(row.id) ||
+    String(a.matched_value || '').toLowerCase() === String(row.matched_value || '').toLowerCase() ||
+    String(a.url || '') === String(row.url || '')
+  );
   const page = state.pages.find(p => String(p.id) === String(row.page_id));
   const target = state.targets.find(t => String(t.id) === String(row.target_id));
   return { sameValue, sameUrl, sameTarget, samePageExtracted, relatedAlerts, page, target };
@@ -94,25 +179,8 @@ function previewImage(path) {
   return `<a class="preview-box" href="${escapeHtml(src)}" target="_blank"><img src="${escapeHtml(src)}" alt="screenshot preview" loading="lazy" /></a>`;
 }
 
-
-function repeatCount(row) {
-  return state.rows.filter(x => String(x.matched_value || '').toLowerCase() === String(row.matched_value || '').toLowerCase()).length;
-}
-function sameUrlCount(row) {
-  return state.rows.filter(x => String(x.url || '') === String(row.url || '')).length;
-}
-function isNewRow(row) {
-  const t = new Date(row.last_seen_at || row.first_seen_at || 0).getTime();
-  if (!t) return false;
-  return (Date.now() - t) < 1000 * 60 * 60 * 24;
-}
-function persistSelection(row) {
-  sessionStorage.setItem('selectedHitId', String(row.id));
-  sessionStorage.setItem('selectedHit', JSON.stringify(row));
-}
-
-function renderRelatedHits(list, title = '없음') {
-  if (!list.length) return `<div class="mini-desc">${title}</div>`;
+function renderRelatedHits(list, emptyText) {
+  if (!list.length) return `<div class="mini-desc">${escapeHtml(emptyText)}</div>`;
   return `<div class="related-list">${list.slice(0, 6).map(item => `
     <div class="related-item clickable" data-hit-id="${escapeHtml(item.id)}">
       <div class="related-head">
@@ -120,7 +188,8 @@ function renderRelatedHits(list, title = '없음') {
         <span class="pill">${escapeHtml(fmtAgo(item.last_seen_at || item.first_seen_at))}</span>
       </div>
       <div class="related-sub">${escapeHtml(item.url || '-')}</div>
-    </div>`).join('')}</div>`;
+    </div>
+  `).join('')}</div>`;
 }
 
 function renderAlertsList(list) {
@@ -132,7 +201,8 @@ function renderAlertsList(list) {
         <span class="pill">${escapeHtml(fmtDate(item.created_at || item.sent_at))}</span>
       </div>
       <div class="related-sub">${escapeHtml(item.error_message || item.url || item.matched_value || '-')}</div>
-    </div>`).join('')}</div>`;
+    </div>
+  `).join('')}</div>`;
 }
 
 function renderExtractedList(list) {
@@ -144,7 +214,8 @@ function renderExtractedList(list) {
         <span class="pill">#${escapeHtml(item.id)}</span>
       </div>
       <div class="related-sub">${escapeHtml(item.normalized || item.raw || '-')}</div>
-    </div>`).join('')}</div>`;
+    </div>
+  `).join('')}</div>`;
 }
 
 function bindRelatedClicks() {
@@ -153,10 +224,10 @@ function bindRelatedClicks() {
       const row = state.rows.find(x => String(x.id) === String(el.dataset.hitId));
       if (!row) return;
       state.selected = row;
+      state.previewed = row;
       saveSelectedHit(row);
       renderSelected();
       renderDetail(row);
-      renderTable();
     });
   });
 }
@@ -175,11 +246,16 @@ function renderSelected() {
 
 function renderDetail(row) {
   if (!row) {
-    document.getElementById('detailBox').innerHTML = '왼쪽 표에 마우스를 올리면 Quick Peek이 즉시 바뀐다. 행을 클릭하면 Investigation으로 이동하고, View 버튼은 현재 페이지에서 선택을 고정한다.';
+    document.getElementById('detailBox').innerHTML = `
+      왼쪽 표에 마우스를 올리면 Quick Peek이 즉시 바뀐다.
+      panel 밖으로 나가면 마지막으로 본 항목으로 유지된다.
+    `;
     return;
   }
+
   const { sameValue, sameUrl, sameTarget, samePageExtracted, relatedAlerts, page, target } = relatedSets(row);
   const flags = buildHitFlags(row, state.rows, state.alerts);
+
   document.getElementById('detailBox').innerHTML = `
     <div class="detail-stack">
       <div class="detail-title-wrap">
@@ -238,57 +314,49 @@ function renderDetail(row) {
         <div class="section-title">Same Page Extracted</div>
         ${renderExtractedList(samePageExtracted)}
       </div>
-    </div>`;
+    </div>
+  `;
   bindRelatedClicks();
 }
 
 function rowMarkup(row) {
   const flags = buildHitFlags(row, state.rows, state.alerts);
-  const selected = state.selected && String(state.selected.id) === String(row.id);
+
   return `
-    <tr class="clickable ${selected ? 'highlight' : ''}" data-id="${escapeHtml(row.id)}">
+    <tr class="clickable" data-id="${escapeHtml(row.id)}">
       <td>${escapeHtml(row.id)}</td>
       <td><span class="badge type">${escapeHtml(row.watch_type || '-')}</span></td>
       <td>${escapeHtml(row.label || '-')}</td>
       <td>
         <div class="matched-value truncate-2">${escapeHtml(row.matched_value || '-')}</div>
         ${renderFlagBadges(flags)}
-        <div class="cell-actions"><button type="button" class="mini-btn js-peek" data-id="${escapeHtml(row.id)}">VIEW</button></div>
+        <div class="cell-actions">
+          <button type="button" class="mini-btn js-peek" data-id="${escapeHtml(row.id)}">VIEW</button>
+        </div>
       </td>
-      <td>${row.url ? `<a class="link url-cell" href="${escapeHtml(row.url)}" target="_blank" onclick="event.stopPropagation()">${escapeHtml(row.url)}</a>` : '<span class="muted">-</span>'}</td>
+      <td>
+        ${row.url ? `<a class="link url-cell" href="${escapeHtml(row.url)}" target="_blank" onclick="event.stopPropagation()">${escapeHtml(row.url)}</a>` : '<span class="muted">-</span>'}
+      </td>
       <td>${escapeHtml(fmtDate(row.last_seen_at || row.first_seen_at))}</td>
-    </tr>`;
+    </tr>
+  `;
 }
 
-function renderTable() {
-  const rows = filteredRows();
-  document.getElementById('hitCountPill').textContent = `${rows.length} rows`;
-  document.getElementById('pagePill').textContent = `Page ${state.page}`;
-  document.getElementById('hitsBody').innerHTML = rows.map(rowMarkup).join('');
-  document.getElementById('hitsEmpty').classList.toggle('hidden', rows.length !== 0);
-  document.getElementById('prevBtn').disabled = state.page <= 1;
-  document.getElementById('nextBtn').disabled = state.rows.length < PAGE_SIZE;
-
+function bindTableEvents() {
   Array.from(document.querySelectorAll('#hitsBody tr')).forEach(tr => {
     const row = state.rows.find(x => String(x.id) === tr.dataset.id);
     if (!row) return;
 
     tr.addEventListener('mouseenter', (e) => {
       if (e.target.closest('.js-peek') || e.target.closest('a')) return;
-      renderDetail(row);
-    });
-
-    tr.addEventListener('mouseleave', () => {
-      renderDetail(state.selected);
-    });
-
-    tr.addEventListener('focusin', () => {
+      state.previewed = row;
       renderDetail(row);
     });
 
     tr.addEventListener('click', (e) => {
       if (e.target.closest('.js-peek') || e.target.closest('a')) return;
       state.selected = row;
+      state.previewed = row;
       saveSelectedHit(row);
       renderSelected();
       gotoInvestigation(row);
@@ -298,21 +366,43 @@ function renderTable() {
   document.querySelectorAll('.js-peek').forEach(btn => {
     btn.addEventListener('mouseenter', () => {
       const row = state.rows.find(x => String(x.id) === String(btn.dataset.id));
-      if (row) renderDetail(row);
+      if (!row) return;
+      state.previewed = row;
+      renderDetail(row);
     });
-    btn.addEventListener('mouseleave', () => {
-      renderDetail(state.selected);
-    });
+
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const row = state.rows.find(x => String(x.id) === String(btn.dataset.id));
-      state.selected = row || null;
-      saveSelectedHit(state.selected);
+      if (!row) return;
+      state.selected = row;
+      state.previewed = row;
+      saveSelectedHit(row);
       renderSelected();
-      renderDetail(state.selected);
+      renderDetail(row);
       renderTable();
     });
   });
+}
+
+function renderTable() {
+  const rows = filteredRows();
+
+  document.getElementById('hitCountPill').textContent = `${rows.length} rows`;
+  document.getElementById('pagePill').textContent = `Page ${state.page}`;
+  document.getElementById('pagePillTop').textContent = `Page ${state.page}`;
+  document.getElementById('hitsBody').innerHTML = rows.map(rowMarkup).join('');
+  document.getElementById('hitsEmpty').classList.toggle('hidden', rows.length !== 0);
+
+  const prevDisabled = state.page <= 1;
+  const nextDisabled = state.rows.length < PAGE_SIZE;
+
+  document.getElementById('prevBtn').disabled = prevDisabled;
+  document.getElementById('nextBtn').disabled = nextDisabled;
+  document.getElementById('prevBtnTop').disabled = prevDisabled;
+  document.getElementById('nextBtnTop').disabled = nextDisabled;
+
+  bindTableEvents();
 }
 
 async function loadHits() {
@@ -323,30 +413,80 @@ async function loadHits() {
     getJson(API.extracted(180)),
     getJson(API.targets)
   ]);
+
   state.rows = rows;
   state.alerts = alerts;
   state.pages = pages;
   state.extracted = extracted;
   state.targets = targets;
+
   fillSelect(document.getElementById('hitTypeFilter'), uniqueValues(state.rows, 'watch_type'));
   fillSelect(document.getElementById('hitLabelFilter'), uniqueValues(state.rows, 'label'));
 
   const saved = loadSelectedHitId();
-  if (saved) state.selected = state.rows.find(r => String(r.id) === String(saved)) || state.rows[0] || null;
-  else if (!state.selected && state.rows[0]) state.selected = state.rows[0];
+  if (saved) {
+    state.selected = state.rows.find(r => String(r.id) === String(saved)) || state.rows[0] || null;
+  } else if (!state.selected && state.rows[0]) {
+    state.selected = state.rows[0];
+  }
+
+  if (!state.previewed) {
+    state.previewed = state.selected;
+  } else {
+    state.previewed = state.rows.find(r => String(r.id) === String(state.previewed.id)) || state.selected || state.rows[0] || null;
+  }
 
   renderSelected();
-  renderDetail(state.selected);
+  renderDetail(getCurrentPreviewRow());
   renderTable();
 }
 
-['hitTypeFilter','hitLabelFilter','searchBox','inlineSearch'].forEach(id => document.getElementById(id).addEventListener(id.includes('Filter') ? 'change' : 'input', () => {
-  renderTable();
-}));
-document.getElementById('prevBtn').addEventListener('click', () => { if (state.page > 1) { state.page -= 1; guardedLoad(loadHits); } });
-document.getElementById('nextBtn').addEventListener('click', () => { if (state.rows.length === PAGE_SIZE) { state.page += 1; guardedLoad(loadHits); } });
+['hitTypeFilter', 'hitLabelFilter', 'searchBox', 'inlineSearch'].forEach(id => {
+  document.getElementById(id).addEventListener(id.includes('Filter') ? 'change' : 'input', () => {
+    const rows = filteredRows();
+    if (rows.length) {
+      state.previewed = rows.find(r => String(r.id) === String(state.previewed?.id)) || rows[0];
+    } else {
+      state.previewed = null;
+    }
+    renderDetail(getCurrentPreviewRow());
+    renderTable();
+  });
+});
+
+document.getElementById('hitsPanel').addEventListener('mouseleave', () => {
+  renderDetail(getCurrentPreviewRow());
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (state.page > 1) {
+    state.page -= 1;
+    guardedLoad(loadHits);
+  }
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (state.rows.length === PAGE_SIZE) {
+    state.page += 1;
+    guardedLoad(loadHits);
+  }
+});
+
+document.getElementById('prevBtnTop').addEventListener('click', () => {
+  document.getElementById('prevBtn').click();
+});
+
+document.getElementById('nextBtnTop').addEventListener('click', () => {
+  document.getElementById('nextBtn').click();
+});
+
 attachRefresh(() => guardedLoad(loadHits));
 guardedLoad(loadHits);
+
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
+
 </script>
 </body>
 </html>

@@ -13,7 +13,7 @@ installPage({
   pageKey: 'investigation',
   heroEyebrow: 'Investigation Workspace',
   heroTitle: 'Hit Investigation',
-  heroDesc: '선택한 hit를 중심으로 타임라인, 같은 IOC, 관련 알림, 같은 target 활동을 하나의 화면에서 이어서 본다. Hits 페이지에서 선택한 항목도 유지된다.',
+  heroDesc: '선택한 hit 기준으로 관련 정보와 흐름을 확인하는 화면',
   heroMeta: ['selection persisted', 'timeline review', 'priority focused'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
@@ -270,6 +270,9 @@ document.getElementById('hitPicker').addEventListener('change', e => selectHit(e
 document.getElementById('searchBox').addEventListener('input', renderSummary);
 attachRefresh(() => guardedLoad(loadInvestigation));
 guardedLoad(loadInvestigation);
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
 </script>
 </body>
 </html>

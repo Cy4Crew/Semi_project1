@@ -13,43 +13,222 @@ installPage({
   pageKey: 'pages',
   heroEyebrow: 'Evidence Explorer',
   heroTitle: 'Pages & Evidence',
-  heroDesc: '최근 수집 페이지와 증거 파일을 분리해서 보여준다. 실제 디버깅은 이 페이지에서 한다. 수집 성공 여부, 변경 여부, 에러를 한 번에 보게 했다.',
+  heroDesc: '최근 수집 페이지와 증거 파일과 함께 실제 디버깅을 통해 수집 성공, 변경, 에러 여부를 확인하는 화면.',
   heroMeta: ['evidence 링크', '변경/에러 표시', '수집 상태 확인'],
   actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
   sidebarExtra: `
     <div class="card-title">Page Filters</div>
     <label class="field-label" for="hostFilter">Host</label>
     <select id="hostFilter" class="control"><option value="">전체</option></select>
+
     <label class="field-label" for="statusFilter">Status Class</label>
-    <select id="statusFilter" class="control"><option value="">전체</option><option value="ok">2xx/3xx</option><option value="fail">4xx/5xx</option></select>
+    <select id="statusFilter" class="control">
+      <option value="">전체</option>
+      <option value="ok">2xx/3xx</option>
+      <option value="fail">4xx/5xx</option>
+    </select>
+
     <label class="field-label" for="changedOnly">변경만 보기</label>
-    <select id="changedOnly" class="control"><option value="">전체</option><option value="changed">changed only</option><option value="error">error only</option></select>
+    <select id="changedOnly" class="control">
+      <option value="">전체</option>
+      <option value="changed">changed only</option>
+      <option value="error">error only</option>
+    </select>
+
     <label class="field-label" for="searchBox">검색</label>
     <input id="searchBox" class="control" type="text" placeholder="title / url / target" />`,
   mainHtml: `
     <div class="hidden empty" id="errorBox"></div>
+
+    <style>
+      :root {
+        --page-ui-height: 38px;
+        --page-ui-font: 13px;
+        --page-ui-radius: 999px;
+        --page-ui-padding-x: 14px;
+      }
+
+      .pages-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: auto;
+      }
+
+      .pages-top-actions .control,
+      .pages-top-actions .pill {
+        width: auto;
+        min-width: 0;
+      }
+
+      .pagination {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .pagination .control,
+      .pagination .pill {
+        height: var(--page-ui-height);
+        font-size: var(--page-ui-font);
+        border-radius: var(--page-ui-radius);
+        padding: 0 var(--page-ui-padding-x);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        box-sizing: border-box;
+        white-space: nowrap;
+      }
+
+      .pagination .control {
+        background: rgba(148, 163, 184, 0.14);
+        color: #d7e3ff;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        transition: background .18s ease, opacity .18s ease;
+      }
+
+      .pagination .control:hover {
+        background: rgba(148, 163, 184, 0.22);
+      }
+
+      .pagination .control:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+      }
+
+      .pagination .pill {
+        background: rgba(59, 130, 246, 0.16);
+        color: #cfe0ff;
+        border: 1px solid rgba(96, 165, 250, 0.18);
+        font-weight: 600;
+      }
+
+      .pagination select.control {
+        min-width: 108px;
+        padding-right: 34px;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image:
+          linear-gradient(45deg, transparent 50%, #cfe0ff 50%),
+          linear-gradient(135deg, #cfe0ff 50%, transparent 50%);
+        background-position:
+          calc(100% - 18px) calc(50% - 2px),
+          calc(100% - 12px) calc(50% - 2px);
+        background-size: 6px 6px, 6px 6px;
+        background-repeat: no-repeat;
+      }
+
+      .pagination .control option {
+        color: #111827;
+        background: #ffffff;
+      }
+
+      #pageCountPill {
+        opacity: 0.82;
+      }
+
+      .page-title-cell,
+      .page-target-cell {
+        max-width: 320px;
+        word-break: break-word;
+      }
+
+      .muted-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        opacity: 0.72;
+      }
+
+      @media (max-width: 900px) {
+        .pages-top-actions {
+          width: 100%;
+          justify-content: flex-start;
+          margin-left: 0;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .pagination .control,
+        .pagination .pill {
+          height: 34px;
+          font-size: 12px;
+          padding: 0 12px;
+        }
+
+        .pagination select.control {
+          min-width: 96px;
+        }
+
+        .page-title-cell,
+        .page-target-cell {
+          max-width: 220px;
+        }
+      }
+    </style>
+
     <section class="grid-3" id="pageStats"></section>
+
     <section class="panel">
       <div class="panel-head">
         <div>
           <div class="panel-title">Recent Pages</div>
           <div class="panel-sub">수집 결과와 증거 파일 직접 열기</div>
         </div>
-        <span class="pill" id="pageCountPill">0 rows</span>
+
+        <div class="pages-top-actions pagination">
+          <button class="control" id="prevBtnTop" type="button">Prev</button>
+          <span class="pill" id="pagePillTop">Page 1 / 1</span>
+          <button class="control" id="nextBtnTop" type="button">Next</button>
+
+          <select id="pageSizeSelect" class="control" title="rows per page">
+            <option value="10">10 rows</option>
+            <option value="30">30 rows</option>
+            <option value="50" selected>50 rows</option>
+            <option value="100">100 rows</option>
+            <option value="120">120 rows</option>
+            <option value="250">250 rows</option>
+            <option value="500">500 rows</option>
+            <option value="1000">1000 rows</option>
+          </select>
+
+          <span class="pill" id="pageCountPill">Total 0</span>
+        </div>
       </div>
+
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>ID</th><th>Target</th><th>Status</th><th>Changed</th><th>Title / URL</th><th>Fetched</th><th>Evidence</th></tr>
+            <tr>
+              <th>ID</th>
+              <th>Target</th>
+              <th>Status</th>
+              <th>Changed</th>
+              <th>Title / URL</th>
+              <th>Fetched</th>
+              <th>Evidence</th>
+            </tr>
           </thead>
           <tbody id="pagesBody"></tbody>
         </table>
         <div class="empty hidden" id="pagesEmpty">표시할 페이지가 없다.</div>
       </div>
+
+      <div class="pagination">
+        <button class="control" id="prevBtn" type="button">Prev</button>
+        <span class="pill" id="pagePill">Page 1 / 1</span>
+        <button class="control" id="nextBtn" type="button">Next</button>
+      </div>
     </section>`
 });
 
 let rows = [];
+let currentPage = 1;
+let pageSize = 50;
+const FETCH_LIMIT = 1000;
 
 function statusClass(code) {
   const n = Number(code || 0);
@@ -63,21 +242,64 @@ function filteredRows() {
   const status = document.getElementById('statusFilter').value.trim().toLowerCase();
   const changed = document.getElementById('changedOnly').value.trim().toLowerCase();
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
+
   return rows.filter(r => {
     const hostOk = !host || String(r.host || '').toLowerCase() === host;
     const statusOk = !status || statusClass(r.status_code) === status;
     const changedOk = !changed || (changed === 'changed' ? !!r.content_changed : !!r.error_message);
-    const joined = [r.target_name, r.host, r.title, r.url, r.skip_reason, r.error_message].map(v => String(v || '').toLowerCase()).join(' ');
+
+    const joined = [
+      r.id,
+      r.target_name,
+      r.host,
+      r.title,
+      r.url,
+      r.skip_reason,
+      r.error_message
+    ].map(v => String(v || '').toLowerCase()).join(' ');
+
     return hostOk && statusOk && changedOk && (!q || joined.includes(q));
   });
 }
 
+function totalPages(list) {
+  return Math.max(1, Math.ceil(list.length / pageSize));
+}
+
+function pagedRows(list) {
+  const start = (currentPage - 1) * pageSize;
+  return list.slice(start, start + pageSize);
+}
+
+function syncPageState(list) {
+  const total = totalPages(list);
+  if (currentPage < 1) currentPage = 1;
+  if (currentPage > total) currentPage = total;
+
+  const label = `Page ${currentPage} / ${total}`;
+  document.getElementById('pagePill').textContent = label;
+  document.getElementById('pagePillTop').textContent = label;
+
+  const prevDisabled = currentPage <= 1;
+  const nextDisabled = currentPage >= total;
+
+  document.getElementById('prevBtn').disabled = prevDisabled;
+  document.getElementById('prevBtnTop').disabled = prevDisabled;
+  document.getElementById('nextBtn').disabled = nextDisabled;
+  document.getElementById('nextBtnTop').disabled = nextDisabled;
+}
+
 function renderStats() {
+  const maxId = rows.length
+    ? Math.max(...rows.map(r => Number(r.id) || 0))
+    : 0;
+
   const changedCount = rows.filter(r => r.content_changed).length;
   const errCount = rows.filter(r => r.error_message || Number(r.status_code || 0) >= 400).length;
   const meaningful = rows.filter(r => r.is_meaningful).length;
+
   renderMetricCards(document.getElementById('pageStats'), [
-    { label: 'Loaded', value: rows.length, foot: '최근 페이지 로드 수' },
+    { label: 'Loaded', value: maxId, foot: '전체 페이지 ID 기준' },
     { label: 'Changed', value: changedCount, foot: 'content_changed=true' },
     { label: 'Meaningful', value: meaningful, foot: 'is_meaningful=true' },
     { label: 'Errors', value: errCount, foot: 'error_message 또는 4xx/5xx' },
@@ -87,31 +309,106 @@ function renderStats() {
 
 function renderTable() {
   const list = filteredRows();
-  document.getElementById('pageCountPill').textContent = `${list.length} rows`;
-  document.getElementById('pagesBody').innerHTML = list.map(r => `
+  syncPageState(list);
+  const visible = pagedRows(list);
+
+  document.getElementById('pageCountPill').textContent = `Total ${list.length}`;
+
+  document.getElementById('pagesBody').innerHTML = visible.map(r => `
     <tr id="page-${escapeHtml(r.id)}">
       <td>${escapeHtml(r.id)}</td>
-      <td>${escapeHtml(r.target_name || '-')}<div class="small muted">${escapeHtml(r.host || '-')}</div></td>
-      <td><span class="badge ${statusClass(r.status_code)}">${escapeHtml(r.status_code ?? '-')}</span></td>
-      <td><span class="badge ${r.error_message ? 'fail' : (r.content_changed ? 'info' : 'other')}">${r.error_message ? 'error' : (r.content_changed ? 'changed' : 'stable')}</span></td>
-      <td>${escapeHtml(r.title || '-')}<div class="small">${r.url ? `<a class="link" target="_blank" href="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a>` : '<span class="muted">-</span>'}</div>${r.error_message ? `<div class="small muted">${escapeHtml(r.error_message)}</div>` : ''}</td>
-      <td>${escapeHtml(fmtDate(r.fetched_at))}<div class="small muted">${escapeHtml(fmtAgo(r.fetched_at))}</div></td>
-      <td><div class="evidence-links">${evidenceLinks(r)}</div></td>
-    </tr>`).join('');
-  document.getElementById('pagesEmpty').classList.toggle('hidden', list.length !== 0);
+
+      <td class="page-target-cell">
+        ${escapeHtml(r.target_name || '-')}
+        <div class="small muted">${escapeHtml(r.host || '-')}</div>
+      </td>
+
+      <td>
+        <span class="badge ${statusClass(r.status_code)}">${escapeHtml(r.status_code ?? '-')}</span>
+      </td>
+
+      <td>
+        <span class="badge ${r.error_message ? 'fail' : (r.content_changed ? 'info' : 'other')}">
+          ${r.error_message ? 'error' : (r.content_changed ? 'changed' : 'stable')}
+        </span>
+      </td>
+
+      <td class="page-title-cell">
+        ${escapeHtml(r.title || '-')}
+        <div class="small">
+          ${r.url
+            ? `<a class="link" target="_blank" href="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a>`
+            : '<span class="muted">-</span>'}
+        </div>
+        ${r.error_message ? `<div class="small muted">${escapeHtml(r.error_message)}</div>` : ''}
+      </td>
+
+      <td>
+        <div>${escapeHtml(fmtDate(r.fetched_at))}</div>
+        <div class="muted-sub">${escapeHtml(fmtAgo(r.fetched_at))}</div>
+      </td>
+
+      <td>
+        <div class="evidence-links">${evidenceLinks(r)}</div>
+      </td>
+    </tr>
+  `).join('');
+
+  document.getElementById('pagesEmpty').classList.toggle('hidden', visible.length !== 0);
 }
 
 async function loadPages() {
-  rows = await getJson(API.pages(120));
+  rows = await getJson(API.pages(FETCH_LIMIT));
   fillSelect(document.getElementById('hostFilter'), uniqueValues(rows, 'host'));
   renderStats();
   renderTable();
 }
 
-['hostFilter','statusFilter','changedOnly'].forEach(id => document.getElementById(id).addEventListener('change', renderTable));
-document.getElementById('searchBox').addEventListener('input', renderTable);
+function resetToFirstPage() {
+  currentPage = 1;
+  renderTable();
+}
+
+['hostFilter', 'statusFilter', 'changedOnly'].forEach(id => {
+  document.getElementById(id).addEventListener('change', resetToFirstPage);
+});
+
+document.getElementById('searchBox').addEventListener('input', resetToFirstPage);
+
+document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+  pageSize = Number(e.target.value) || 50;
+  currentPage = 1;
+  renderTable();
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage -= 1;
+    renderTable();
+  }
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  const total = totalPages(filteredRows());
+  if (currentPage < total) {
+    currentPage += 1;
+    renderTable();
+  }
+});
+
+document.getElementById('prevBtnTop').addEventListener('click', () => {
+  document.getElementById('prevBtn').click();
+});
+
+document.getElementById('nextBtnTop').addEventListener('click', () => {
+  document.getElementById('nextBtn').click();
+});
+
 attachRefresh(() => guardedLoad(loadPages));
 guardedLoad(loadPages);
+enableAutoRefresh(() => {
+  document.getElementById('heroRefreshBtn')?.click();
+}, 5000);
 </script>
 </body>
 </html>

@@ -468,3 +468,7 @@ function relationColor(kind) {
   };
   return map[kind] || '#cbd8f3';
 }
+function enableAutoRefresh(fn, interval = 5000) {
+  fn();
+  return setInterval(fn, interval);
+}
