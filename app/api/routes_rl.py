@@ -195,7 +195,7 @@ async def update_targets(payload: dict):
 
         new_items.append({
             "seed_url": url,
-            "label": f"auto-{len(existing)+len(new_items)+1:03d}"
+            "label": f"onion-{len(existing)+len(new_items)+1:03d}"
         })
 
     merged = existing + new_items
