@@ -101,4 +101,4 @@ Designed to simulate a real cyber threat intelligence workflow by connecting cra
 ---
 
 ## Documentation
-Detailed runtime behavior, operations, and troubleshooting are documented in `README_OPERATIONS.md`.
+Detailed runtime behavior, operations, and troubleshooting are documented in [README_OPERATIONS.md](README_OPERATIONS.md).
