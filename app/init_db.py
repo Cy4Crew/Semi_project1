@@ -117,6 +117,7 @@ def init_db(load_seed_data: bool = True):
         with conn.cursor() as cur:
             for stmt in SCHEMA:
                 cur.execute(stmt)
+
             for stmt in MIGRATIONS:
                 try:
                     cur.execute(stmt)
@@ -130,6 +131,37 @@ def init_db(load_seed_data: bool = True):
         if load_seed_data:
             load_targets_file(conn, settings.targets_seed_path)
             load_watchlist_file(conn, settings.watchlist_seed_path)
+
+            cur.execute(
+                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS is_queued BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+            cur.execute(
+                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_queued_at TIMESTAMPTZ"
+            )
+            cur.execute(
+                "ALTER TABLE targets ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ"
+            )
+            cur.execute(
+                "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_fingerprint TEXT"
+            )
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_alert_fingerprint_channel
+                ON alerts(alert_fingerprint, channel)
+                WHERE alert_fingerprint IS NOT NULL
+            """)
+
+            # watchlist 정규표현식 지원 마이그레이션
+            cur.execute(
+                "ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS is_regex BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+
+            for stmt in INDEXES:
+                cur.execute(stmt)
+
+        if load_seed_data:
+            load_targets_file(conn, settings.targets_seed_path)
+            load_watchlist_file(conn, settings.watchlist_seed_path)
+
         conn.commit()
 
 
