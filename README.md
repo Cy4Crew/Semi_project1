@@ -1,118 +1,156 @@
 # Darkweb Monitor
 
-Darkweb Monitor is a Python-based monitoring system for **surface web and darkweb (.onion) sources**.  
-It crawls target pages, extracts indicators such as emails, domains, IP addresses, usernames, phone numbers, and crypto addresses, compares them against a watchlist, stores the results in PostgreSQL, and delivers alerts through configured channels.
+This project is a Python-based intelligence collection and analysis platform built around four connected functions:
 
-It also ships with a lightweight web UI and REST API for reviewing targets, pages, hits, extracted items, and alerts.
+1. **Surface web / darkweb monitoring**
+2. **Indicator extraction and watchlist matching**
+3. **Telegram-based intelligence collection**
+4. **Crypto wallet trace analysis and graph visualization**
 
----
-
-## Overview
-
-This project is designed around a continuous monitoring loop:
-
-1. Load crawl targets and watchlist entries from JSON seed files
-2. Queue eligible targets for crawling
-3. Fetch pages with normal HTTP requests or through Tor
-4. Extract structured indicators from page content
-5. Match extracted values against a watchlist
-6. Save evidence and metadata into PostgreSQL
-7. Trigger alert delivery through stdout, Discord, or Telegram
-8. Expose the collected data through a FastAPI backend and static UI
-
-The repository supports both **local execution** and **Docker-based execution**.
+The system is not a single crawler only. It is a **hybrid monitoring stack** that combines web crawling, IoC extraction, alerting, Telegram collection, and wallet tracing into one PostgreSQL-backed service.
 
 ---
 
-## Main Features
+## What the project does
 
-- **Darkweb support with Tor**
-  - `.onion` crawling through a SOCKS proxy
-  - Optional Tor routing for all requests
-- **Asynchronous crawling**
-  - Multi-worker queue-based scheduler
-  - Depth-based expansion for discovered links
-- **Indicator extraction**
-  - Email
-  - Domain
-  - IPv4
-  - Phone number
-  - Username-like values
-  - Crypto-related patterns depending on extractor rules
-- **Watchlist matching**
-  - Exact normalized matching
-  - Regex watchlist entries supported
-- **Evidence collection**
-  - HTML dump
-  - Text dump
-  - Optional screenshot capture with Playwright
-- **Alert delivery**
-  - stdout
-  - Discord webhook
-  - Telegram bot
-- **FastAPI backend**
-  - Summary endpoint
-  - Target management
-  - Watchlist management
-  - Recent pages / hits / extracted items / alerts
-  - Reload endpoint for seed files
-- **Static UI**
-  - Dashboard
-  - Targets
-  - Watchlist
-  - Hits
-  - Alerts
-  - Investigation / analytics / graph pages
+At runtime, the project continuously:
+
+- loads crawl targets from `targets.json`
+- loads watchlist rules from `watchlist.json`
+- fetches web pages from normal sites and `.onion` sites
+- extracts indicators such as email, domain, IP, Telegram links, URLs, BTC addresses, hashes, and API-key-like strings
+- compares extracted values to the watchlist
+- stores evidence and hit history in PostgreSQL
+- sends alerts through Discord or Telegram when new matches appear
+- exposes collected data through a FastAPI backend and static UI
+- collects Telegram channel / bot / chat intelligence through a separate bridge
+- registers discovered wallet addresses into the wallet-tracing subsystem
+- visualizes wallet relationships through graph APIs and UI pages
 
 ---
 
-## Repository Structure
+## Main components
+
+### 1. Web crawler
+Located mainly in:
+
+- `app/crawler/scheduler.py`
+- `app/crawler/fetcher.py`
+- `app/crawler/extractor.py`
+- `app/crawler/matcher.py`
+- `app/crawler/screenshot.py`
+
+Responsibilities:
+
+- schedule due targets from the database
+- fetch pages asynchronously
+- support Tor routing for `.onion` URLs
+- normalize discovered links
+- save HTML/text/screenshot evidence
+- extract indicators from page text
+- generate watchlist hits and queue alerts
+
+### 2. FastAPI backend
+Located mainly in:
+
+- `app/api/main.py`
+- `app/api/routes_targets.py`
+- `app/api/routes_watchlist.py`
+- `app/api/routes_hits.py`
+- `app/api/routes_pages.py`
+- `app/api/routes_rl.py`
+
+Responsibilities:
+
+- health check
+- summary counts
+- target CRUD
+- watchlist CRUD
+- recent hits / pages / alerts
+- ransomware.live-related endpoints
+- evidence and UI serving
+- graph API registration from `analyzer/routes_graph.py`
+
+### 3. Alert subsystem
+Located in:
+
+- `app/notifier/worker.py`
+- `app/notifier/discord.py`
+- `app/notifier/telegram.py`
+
+Responsibilities:
+
+- poll pending alerts from DB
+- format hit details
+- send outbound notifications
+- mark alerts as sent or failed
+
+### 4. Telegram intelligence bridge
+Located in:
+
+- `app/telegram/telegram_bridge.py`
+- `app/telegram/scanner.py`
+- `app/telegram/recorder.py`
+- `app/telegram/bot_handler.py`
+
+Responsibilities:
+
+- monitor Telegram links extracted from crawled pages
+- join or inspect public Telegram channels
+- distinguish bots vs normal channels
+- collect raw messages, members, wallets, private invite links, and extracted artifacts
+- bridge discovered BTC / ETH wallets into the wallet tracker
+
+### 5. Wallet tracing / graph analysis
+Located in:
+
+- `analyzer/worker.py`
+- `analyzer/tracer.py`
+- `analyzer/routes_graph.py`
+- `analyzer/etherscan_client.py`
+- `analyzer/mempool_client.py`
+
+Responsibilities:
+
+- maintain tracked wallets and trace queue
+- poll EVM and BTC transaction activity
+- aggregate wallet edges into the database
+- expose graph data for the UI
+
+---
+
+## Repository structure
 
 ```text
 .
+├── analyzer/
+│   ├── worker.py
+│   ├── tracer.py
+│   ├── routes_graph.py
+│   ├── etherscan_client.py
+│   ├── mempool_client.py
+│   └── evm_filter_config.py
 ├── app/
 │   ├── api/
-│   │   ├── main.py
-│   │   ├── routes_targets.py
-│   │   ├── routes_watchlist.py
-│   │   ├── routes_hits.py
-│   │   └── routes_pages.py
 │   ├── core/
-│   │   ├── config.py
-│   │   ├── db.py
-│   │   ├── logging.py
-│   │   ├── security.py
-│   │   └── seed_loader.py
 │   ├── crawler/
-│   │   ├── scheduler.py
-│   │   ├── fetcher.py
-│   │   ├── extractor.py
-│   │   ├── matcher.py
-│   │   └── screenshot.py
-│   ├── notifier/
-│   │   ├── worker.py
-│   │   ├── discord.py
-│   │   └── telegram.py
-│   ├── repository/
-│   │   ├── alerts.py
-│   │   ├── extracted_items.py
-│   │   ├── pages.py
-│   │   ├── targets.py
-│   │   ├── watchlist.py
-│   │   └── watchlist_hits.py
 │   ├── models/
-│   ├── init_db.py
-│   └── __init__.py
+│   ├── notifier/
+│   ├── repository/
+│   ├── telegram/
+│   └── init_db.py
 ├── ui/
 │   ├── index.html
-│   ├── targets.html
-│   ├── watchlist.html
 │   ├── hits.html
 │   ├── alerts.html
 │   ├── pages.html
-│   ├── analytics.html
+│   ├── targets.html
+│   ├── watchlist.html
 │   ├── graph.html
+│   ├── analytics.html
 │   ├── investigation.html
+│   ├── incidents.html
+│   ├── crypto_wallet.html
 │   └── assets/
 ├── docker-compose.yml
 ├── Dockerfile
@@ -129,33 +167,41 @@ The repository supports both **local execution** and **Docker-based execution**.
 
 ---
 
-## Architecture
+## High-level flow
 
 ```text
-targets.json / watchlist.json
-        ↓
-     seed_loader
-        ↓
-      PostgreSQL
-        ↓
-      scheduler
-        ↓
-       queue
-        ↓
-      workers
-        ↓
-  fetch → extract → match
-        ↓
- save pages / extracted_items / hits / alerts
-        ↓
-   alert_worker delivery
-        ↓
-  FastAPI + static UI
+targets.json + watchlist.json
+            ↓
+         init_db
+            ↓
+        PostgreSQL
+            ↓
+   scheduler / workers
+            ↓
+   fetch → extract → match
+            ↓
+ pages / extracted_items / hits / alerts
+            ↓
+  FastAPI + UI + notifier worker
+            ↓
+ Discord / Telegram delivery
+
+Telegram links found in pages
+            ↓
+telegram_bridge
+            ↓
+tg_* tables + wallet registration
+            ↓
+tracked_wallets / trace_queue
+            ↓
+analyzer.worker / tracer
+            ↓
+graph API + wallet UI
 ```
 
 ---
 
-## Execution Modes
+## Runtime modes
 
 The entry point is `run.py`.
 
@@ -169,114 +215,33 @@ python run.py alert_worker
 python run.py init_db
 ```
 
-### Mode details
+### `python run.py all`
+Starts:
 
-- `all`
-  - Starts API server, crawler, and alert worker together
-- `api`
-  - Starts only the FastAPI application
-- `crawler`
-  - Starts only the scheduler and crawl workers
-- `alert_worker`
-  - Starts only the alert delivery worker
-- `init_db`
-  - Creates required tables, indexes, and loads seed data
+- FastAPI server
+- crawler scheduler and workers
+- alert worker
+- Telegram bridge
 
-On startup for non-init modes, the application also resets queued target state in the database to avoid stuck queue flags from previous runs.
+Use this for full local execution.
 
----
+### `python run.py api`
+Starts only the API and static UI.
 
-## Requirements
+### `python run.py crawler`
+Starts only the crawler loop.
 
-### Local
-- Python 3.11+ recommended
-- PostgreSQL
-- Playwright browser dependencies
-- Tor, if using `.onion` crawling outside Docker
+### `python run.py alert_worker`
+Starts only the alert delivery worker.
 
-### Docker
-- Docker
-- Docker Compose
+### `python run.py init_db`
+Creates tables, indexes, views, migrations, wallet tracker schema, and optionally seed data.
 
 ---
 
-## Quick Start with Docker
+## Environment variables
 
-1. Copy environment file:
-
-```bash
-cp .env.example .env
-```
-
-2. Review `.env` values.
-
-3. Start the stack:
-
-```bash
-docker-compose up --build
-```
-
-4. Open the service:
-
-```text
-http://localhost:8000
-```
-
-The Docker stack includes:
-
-- `db` → PostgreSQL 16
-- `tor` → SOCKS proxy for onion access
-- `app` → FastAPI + crawler + alert worker container
-
-### Docker-mounted paths
-
-The container mounts these paths from the repository:
-
-- `./evidence -> /app/evidence`
-- `./ui -> /app/ui`
-- `./targets.json -> /app/targets.json`
-- `./watchlist.json -> /app/watchlist.json`
-
-This means screenshots, HTML dumps, and text dumps remain available on the host machine.
-
----
-
-## Quick Start Locally
-
-1. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-playwright install
-```
-
-2. Prepare PostgreSQL and update `.env`.
-
-3. Initialize the database:
-
-```bash
-python run.py init_db
-```
-
-4. Start the full application:
-
-```bash
-python run.py
-```
-
-Or explicitly:
-
-```bash
-python run.py all
-```
-
----
-
-## Configuration
-
-Configuration is defined in `app/core/config.py` through environment variables.
-
-### Example `.env`
+Start from `.env.example`.
 
 ```env
 API_HOST=0.0.0.0
@@ -305,320 +270,324 @@ TOR_SOCKS_PORT=9050
 TOR_PROXY_URL=socks5h://tor:9050
 
 REQUEST_TIMEOUT_SECONDS=60
+
+TELEGRAM_COLLECTOR_API_ID=
+TELEGRAM_COLLECTOR_API_HASH=
+TELEGRAM_COLLECTOR_SESSION=
+
+MORALIS_API_KEY=
 ```
 
-### Important settings
+### Important notes
 
-- `API_HOST`, `API_PORT`
-  - API server bind address and port
-- `API_KEY`
-  - Required for protected write operations
-- `DATABASE_URL`
-  - PostgreSQL connection string
-- `POLL_INTERVAL_SECONDS`
-  - Producer loop interval
-- `WORKER_COUNT`
-  - Number of concurrent crawl workers
-- `MAX_DEPTH`
-  - Maximum recursive link expansion depth
-- `MAX_PAGES_PER_HOST`
-  - Per-cycle page cap per host
-- `ALERT_COOLDOWN_SECONDS`
-  - Prevents repeated alerts for the same hit too frequently
-- `SCREENSHOT_ENABLED`
-  - Enables Playwright screenshots
-- `PLAYWRIGHT_TIMEOUT_MS`
-  - Screenshot page load timeout
-- `TOR_ENABLED`
-  - Enables Tor-aware fetching
-- `TOR_FOR_ALL_REQUESTS`
-  - Routes all traffic through Tor when enabled
+- `TOR_ENABLED=true` is required for `.onion` crawling.
+- `.onion` requests are routed through Tor automatically.
+- Telegram bridge will not work without collector credentials.
+- Wallet tracing for EVM chains depends on the configured external API client.
+- Alert channels are enabled only if their credentials are set.
 
 ---
 
-## Seed Files
+## Docker execution
 
-### `targets.json`
+### 1. Prepare `.env`
+Copy `.env.example` to `.env` and fill required values.
 
-Defines seed targets to crawl.
-
-Example:
-
-```json
-[
-  {
-    "seed_url": "http://exampleonionaddress.onion/",
-    "label": "target-001"
-  }
-]
+### 2. Start all services
+```bash
+docker compose up --build
 ```
 
-### `watchlist.json`
-
-Defines values to monitor.
-
-Supported styles include:
-
-- single pattern
-- multiple patterns
-- regex patterns
-
-Example:
-
-```json
-[
-  {
-    "type": "email",
-    "pattern": "test@example.com",
-    "label": "demo-email"
-  },
-  {
-    "type": "domain",
-    "patterns": ["mail.ru", "proton.me"],
-    "label": "demo-domain"
-  },
-  {
-    "type": "domain",
-    "patterns": [".*\\.ru$", ".*\\.su$"],
-    "is_regex": true,
-    "label": "regex-domain"
-  }
-]
+### 3. Run in background
+```bash
+docker compose up -d --build
 ```
 
-The loader accepts:
-
-- `type`
-- `pattern`
-- `patterns`
-- `label`
-- `is_regex`
-
----
-
-## API Overview
-
-### Public endpoints
-
-- `GET /health`
-- `GET /`
-- `GET /api/summary`
-- `GET /api/targets`
-- `GET /api/watchlist`
-- `GET /api/hits/recent`
-- `GET /api/extracted/recent`
-- `GET /api/alerts/recent`
-- `GET /api/pages/recent`
-
-### Protected endpoints
-
-These require the configured API key:
-
-- `POST /api/reload`
-- `POST /api/targets`
-- `DELETE /api/targets/{target_id}`
-- `POST /api/watchlist`
-- `DELETE /api/watchlist/{watchlist_id}`
-
-### Utility routes
-
-- `/evidence/...`
-- `/app/evidence/screenshots/{filename:path}`
-- `/debug/screenshot/{filename:path}`
-
-The extra screenshot routes exist to keep previously stored screenshot paths accessible even when legacy path formats appear in the database.
-
----
-
-## UI Pages
-
-The project contains a static frontend under `ui/`.
-
-Main pages include:
-
-- `index.html`
-- `targets.html`
-- `watchlist.html`
-- `hits.html`
-- `alerts.html`
-- `pages.html`
-- `analytics.html`
-- `graph.html`
-- `investigation.html`
-
-These pages are served by FastAPI under `/ui` and the root dashboard is mapped to `index.html`.
-
----
-
-## Data Model
-
-The database is initialized in `app/init_db.py`.
-
-### Core tables
-
-- `targets`
-  - crawl seeds and queue state
-- `pages`
-  - fetched page metadata and evidence paths
-- `extracted_items`
-  - structured indicators extracted from pages
-- `watchlist`
-  - monitored patterns and regex entries
-- `watchlist_hits`
-  - matches between extracted items and watchlist entries
-- `alerts`
-  - per-channel delivery records
-
-### Stored page metadata includes
-
-- target reference
-- URL and host
-- title
-- status code
-- content hash
-- fetched timestamp
-- screenshot path
-- raw HTML path
-- text dump path
-- meaningful/skip flags
-- error message
-
----
-
-## How the Crawl Pipeline Works
-
-### 1. Seed loading
-`init_db()` loads `targets.json` and `watchlist.json` into PostgreSQL.
-
-### 2. Producer loop
-The scheduler periodically queries due targets using revisit timing rules.
-
-### 3. Queueing
-Eligible targets are normalized, marked queued, and pushed into an async queue.
-
-### 4. Worker processing
-Each worker fetches the page, extracts indicators, saves page records, and evaluates matches.
-
-### 5. Link expansion
-If depth and filtering rules allow it, discovered links are enqueued for deeper crawling.
-
-### 6. Alert generation
-New hits create alert records for delivery channels.
-
-### 7. Alert delivery
-The alert worker reads pending alerts and sends them to stdout, Discord, or Telegram.
-
----
-
-## Alerts
-
-Alert delivery is implemented in `app/notifier/worker.py`.
-
-Supported channels:
-
-- `stdout`
-- `discord`
-- `telegram`
-
-Alert messages include:
-
-- matched watchlist type
-- watch value
-- matched extracted value
-- source URL
-- title, when available
-- label, when available
-- screenshot path, when available
-
-Cooldown handling is controlled with `ALERT_COOLDOWN_SECONDS`.
-
----
-
-## Evidence Output
-
-The application writes evidence into:
-
-```text
-evidence/
-├── html/
-├── text/
-└── screenshots/
+### 4. View logs
+```bash
+docker compose logs -f
 ```
 
-Generated outputs may include:
+### 5. Stop services
+```bash
+docker compose down
+```
 
-- raw HTML snapshot
-- extracted text dump
-- Playwright screenshot
+### Included services
 
-This is useful for later validation and investigation.
+`docker-compose.yml` defines:
+
+- `db`: PostgreSQL 16
+- `tor`: SOCKS proxy container for `.onion` access
+- `app`: main FastAPI + crawler application
+- `worker`: analyzer wallet worker
 
 ---
 
-## Common Run Commands
+## Local execution
 
-### Full stack
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+Initialize DB:
+
+```bash
+python run.py init_db
+```
+
+Run everything:
+
 ```bash
 python run.py all
 ```
 
-### API only
-```bash
-python run.py api
-```
+---
 
-### Crawler only
-```bash
-python run.py crawler
-```
+## Windows helper scripts
 
-### Alert worker only
-```bash
-python run.py alert_worker
-```
+### `run.bat`
+Starts containers and follows logs.
 
-### Docker stack
-```bash
-docker-compose up --build
-```
+### `reset.bat`
+Stops containers and removes volumes. This fully resets DB state.
+
+### `restart_docker.bat`
+Restarts Docker Desktop and waits until the daemon is ready.
 
 ---
 
-## Expected Behavior
+## Core database tables
 
-When the system is working correctly, you should see:
+The database schema is initialized in `app/init_db.py`.
 
-- targets loaded into the database
-- pages being fetched continuously
-- extracted items increasing over time
-- recent hits when watchlist matches occur
-- alert records only for real hit events
-- screenshots saved when screenshot capture is enabled
+### Core monitoring tables
+- `targets`
+- `pages`
+- `extracted_items`
+- `watchlist`
+- `watchlist_hits`
+- `alerts`
+
+### Telegram collection tables
+- `tg_channels`
+- `tg_channel_admins`
+- `tg_raw_messages`
+- `tg_wallets`
+- `tg_extracted_info`
+- `tg_private_channels`
+- `tg_members`
+
+### Darkweb / ransomware ingestion tables
+- `darkweb_posts`
+- `rl_info_cache`
+- `rl_victims_cache`
+
+### Wallet tracing tables
+Created from `analyzer/schema_wallet_tracker.sql` and used by the analyzer / graph subsystem.
 
 ---
 
-## Troubleshooting Summary
+## Indicator types currently extracted
 
-- No pages fetched
-  - check DB connection, targets, queue state, and scheduler loop
-- No extracted items
-  - verify fetch results and extractor logic
-- No hits
-  - verify watchlist type, normalization, and regex correctness
-- No alerts
-  - verify webhook/token configuration and cooldown behavior
-- No screenshots
-  - verify Playwright installation and `SCREENSHOT_ENABLED=true`
+From `app/crawler/extractor.py`, the crawler can extract:
+
+- `email`
+- `onion`
+- `domain`
+- `phone`
+- `username`
+- `ipv4`
+- `url`
+- `telegram`
+- `btc`
+- `api_key`
+- `hash`
+
+The extractor also normalizes values and rejects common false positives such as:
+
+- static asset suffixes for domains
+- placeholder domains
+- localhost URLs
+- weak or repetitive hash-like strings
+- noisy usernames
+- invalid phone-like strings
 
 ---
 
-## Notes
+## Watchlist behavior
 
-- `.onion` crawling requires Tor connectivity.
-- Routing all traffic through Tor may significantly slow crawling.
-- Large `MAX_DEPTH` and high worker counts can rapidly increase load.
-- Regex watchlist entries should be validated carefully to avoid noisy matches.
-- Evidence directories should be persisted in production.
+The watchlist supports:
+
+- exact normalized matching
+- regex matching via `is_regex=true`
+
+Matching flow:
+
+1. extracted value is normalized
+2. exact match is checked first
+3. regex match is checked next
+4. a hit is created per **URL + matched value**
+5. an alert is created per **value**, not for every repeated URL
+
+That means:
+
+- same URL scanned again → existing hit updated, no new alert
+- same value found on a new URL → new hit possible, alert deduplicated by value
+- alert delivery happens only for configured channels
+
+---
+
+## Alert behavior
+
+Channels are activated automatically:
+
+- Discord if `DISCORD_WEBHOOK_URL` is set
+- Telegram if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set
+
+Alerts are stored first in DB, then processed by the alert worker.
+
+This gives the project:
+
+- retry visibility
+- failure logging
+- deduplication by `alert_fingerprint`
+
+---
+
+## UI pages
+
+The `ui/` directory includes:
+
+- `index.html` — overview dashboard
+- `targets.html` — target list / management
+- `watchlist.html` — watchlist list / management
+- `pages.html` — recent page history
+- `hits.html` — hit history
+- `alerts.html` — alert status
+- `graph.html` — relationship / wallet graph
+- `analytics.html` — aggregate analytics
+- `investigation.html` — case-style detail view
+- `incidents.html` — incident-focused page
+- `crypto_wallet.html` — wallet-oriented view
+
+The backend serves:
+
+- `/` → overview page
+- `/ui/...` → static UI assets
+- `/evidence/...` → saved evidence files
+
+---
+
+## Main API endpoints
+
+### Core
+- `GET /health`
+- `GET /`
+- `GET /api/summary`
+- `POST /api/reload`
+
+### Targets
+Defined in `app/api/routes_targets.py`
+
+### Watchlist
+Defined in `app/api/routes_watchlist.py`
+
+### Hits / alerts / pages
+Defined in:
+- `app/api/routes_hits.py`
+- `app/api/routes_pages.py`
+
+### Ransomware.live integration
+Defined in `app/api/routes_rl.py`
+
+Examples:
+- `GET /api/rl/info`
+- `POST /api/rl/info/refresh`
+- `GET /api/rl/groups`
+- `GET /api/rl/victims`
+
+### Graph endpoints
+Mounted from `analyzer/routes_graph.py` under:
+
+- `/api/graph/...`
+
+---
+
+## Evidence output
+
+The crawler stores evidence under `evidence/`:
+
+- `evidence/html`
+- `evidence/text`
+- `evidence/screenshots`
+
+This is used for:
+
+- later verification
+- investigation UI
+- alert context
+- screenshot links in hits
+
+---
+
+## External dependencies and integrations
+
+This project depends on several external services or APIs depending on enabled features:
+
+- Tor proxy container for `.onion` fetching
+- PostgreSQL for persistence
+- Playwright Chromium for screenshots
+- Telegram client credentials for bridge collection
+- Discord webhook for notifications
+- Telegram bot API for notifications
+- ransomware.live API for group / victim data
+- Moralis or equivalent EVM history API through analyzer client
+- mempool-based BTC API client for BTC tracing
+
+---
+
+## Known characteristics of the current codebase
+
+This repository already contains several subsystems in one codebase. Because of that:
+
+- it is broader than a typical course crawler project
+- crawler, Telegram bridge, and wallet analyzer are coupled through the same DB
+- runtime logs can become noisy if all components run together
+- deployment should be staged carefully if you want stable demos
+
+For a presentation or class submission, the cleanest explanation is:
+
+> “This is an integrated monitoring and analysis platform that starts from web crawling, expands into Telegram intelligence, and links discovered wallets into a graph-based crypto trace workflow.”
+
+---
+
+## Recommended demo scope
+
+For a stable demo, enable these first:
+
+1. crawler
+2. watchlist matching
+3. evidence storage
+4. API/UI
+5. Discord or Telegram alerts
+
+Then add, only if credentials are ready:
+
+6. Telegram bridge
+7. wallet graph tracing
+8. ransomware.live enrichment
+
+This reduces failure points during demonstration.
+
+---
+
+## Best practice
+
+Keep `targets.json`, `watchlist.json`, `.env`, and evidence paths aligned with the deployed environment. Most startup failures in this project come from configuration mismatch, missing credentials, or stale database state rather than from the crawler logic itself.
 
 ---
 
