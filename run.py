@@ -15,6 +15,17 @@ from app.repository.targets import reset_queued_targets
 # [추가] 텔레그램 수집기 브릿지 병합
 from app.telegram.telegram_bridge import run_bridge as run_tg_bridge
 
+# 🔥 [그래프 기능 추가] 404 에러 해결을 위한 라우터 등록
+try:
+    from analyzer.routes_graph import router as graph_router
+    app.include_router(graph_router, prefix="/api/graph", tags=["graph"])
+    print("[INFO] Graph API router registered successfully.")
+except ImportError as e:
+    print(f"[WARNING] Graph router import failed: {e}")
+    # 경로가 다를 경우를 대비 (필요시 아래 주석 해제)
+    # from app.analyzer.routes_graph import router as graph_router
+    # app.include_router(graph_router, prefix="/api/graph", tags=["graph"])
+
 
 def run_api() -> None:
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)
