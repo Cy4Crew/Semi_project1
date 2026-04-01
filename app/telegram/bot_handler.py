@@ -162,6 +162,14 @@ async def _explore_reply_keyboard(client, bot_entity, initial_response, bot_name
 
         sent = await client.send_message(bot_entity, btn_text)
         await random_delay(0.5, 1.0)
+        await asyncio.sleep(2.0)
+
+        if not hasattr(_explore_reply_keyboard, "_cnt"):
+            _explore_reply_keyboard._cnt = 0
+        _explore_reply_keyboard._cnt += 1
+        if _explore_reply_keyboard._cnt % 5 == 0:
+            print("[BOT] Reply 롱슬립 10s")
+            await asyncio.sleep(10.0)
 
         response = await _wait_for_bot_response(client, bot_entity, after_id=sent.id)
         if response is None:
@@ -219,6 +227,14 @@ async def _explore_inline_keyboard(client, bot_entity, message, bot_name,
                 continue
 
             await random_delay(0.5, 1.0)
+            await asyncio.sleep(2.0)
+
+            if not hasattr(_explore_inline_keyboard, "_cnt"):
+                _explore_inline_keyboard._cnt = 0
+            _explore_inline_keyboard._cnt += 1
+            if _explore_inline_keyboard._cnt % 5 == 0:
+                print("[BOT] Inline 롱슬립 10s")
+                await asyncio.sleep(10.0)
 
             updated_msg = await _get_updated_message(client, bot_entity, message.id)
             if updated_msg is None:

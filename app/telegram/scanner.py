@@ -156,7 +156,16 @@ def extract_all_info(text, channel_name, source="chat"):
 
 
 async def random_delay(min_sec=0.3, max_sec=0.6):
-    await asyncio.sleep(random.uniform(min_sec, max_sec))
+    await asyncio.sleep(2.0)
+
+    if not hasattr(random_delay, "_cnt"):
+        random_delay._cnt = 0
+
+    random_delay._cnt += 1
+
+    if random_delay._cnt % 10 == 0:
+        print("[DELAY] 롱슬립 15s")
+        await asyncio.sleep(15.0)
 
 
 async def join_target_channel(client, target_id):

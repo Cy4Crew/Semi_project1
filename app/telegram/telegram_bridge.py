@@ -128,6 +128,15 @@ async def process_target(client: TelegramClient, target_id: str) -> None:
 
     await asyncio.sleep(2.0)
 
+    if not hasattr(process_target, "_cnt"):
+        process_target._cnt = 0
+
+    process_target._cnt += 1
+
+    if process_target._cnt % 3 == 0:
+        print("[BRIDGE] 롱슬립 10s")
+        await asyncio.sleep(10.0)
+
 
 _message_folders: dict[int, list] = {}
 
