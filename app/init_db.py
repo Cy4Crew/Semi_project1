@@ -170,6 +170,85 @@ SCHEMA = [
     )
     """,
 
+     """
+    CREATE TABLE IF NOT EXISTS tg_channels (
+        id BIGSERIAL PRIMARY KEY,
+        channel_name TEXT,
+        channel_id BIGINT UNIQUE,
+        source_type TEXT NOT NULL DEFAULT 'entered',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tg_channel_admins (
+        id BIGSERIAL PRIMARY KEY,
+        tg_channel_id BIGINT NOT NULL REFERENCES tg_channels(id) ON DELETE CASCADE,
+        admin_user_id BIGINT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(tg_channel_id, admin_user_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tg_raw_messages (
+        id BIGSERIAL PRIMARY KEY,
+        channel_name TEXT,
+        channel_id BIGINT,
+        sender_id BIGINT,
+        sender_name TEXT,
+        message_id BIGINT,
+        content TEXT,
+        original_timestamp TIMESTAMPTZ,
+        source TEXT NOT NULL DEFAULT 'chat',
+        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(channel_id, message_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tg_wallets (
+        id BIGSERIAL PRIMARY KEY,
+        channel_name TEXT NOT NULL,
+        coin_type TEXT NOT NULL,
+        address TEXT NOT NULL,
+        tags TEXT,
+        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(channel_name, coin_type, address)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tg_extracted_info (
+        id BIGSERIAL PRIMARY KEY,
+        channel_name TEXT NOT NULL,
+        data_type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'chat',
+        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(channel_name, data_type, value)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tg_private_channels (
+        id BIGSERIAL PRIMARY KEY,
+        invite_link TEXT NOT NULL,
+        channel_id BIGINT,
+        channel_name TEXT,
+        found_in_channel TEXT,
+        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(invite_link, found_in_channel)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tg_members (
+        id BIGSERIAL PRIMARY KEY,
+        channel_name TEXT NOT NULL,
+        channel_id BIGINT,
+        user_id BIGINT NOT NULL,
+        username TEXT,
+        nickname TEXT,
+        collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(channel_id, user_id)
+    )
+    """,
+
        # ================= ⭐ 핵심: darkweb_posts 확장 =================
     """
     CREATE TABLE IF NOT EXISTS darkweb_posts (
@@ -222,6 +301,13 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_pages_host ON pages(host)",
     "CREATE INDEX IF NOT EXISTS idx_watchlist_normalized ON watchlist(normalized)",
     "CREATE INDEX IF NOT EXISTS idx_darkweb_onion ON darkweb_posts(onion_url)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_channels_channel_id ON tg_channels(channel_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_raw_messages_channel_id ON tg_raw_messages(channel_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_wallets_address ON tg_wallets(address)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_wallets_coin_type ON tg_wallets(coin_type)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_extracted_info_data_type ON tg_extracted_info(data_type)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_extracted_info_value ON tg_extracted_info(value)",
+    "CREATE INDEX IF NOT EXISTS idx_tg_members_user_id ON tg_members(user_id)",
 ]
 
 # ================= VIEW =================
