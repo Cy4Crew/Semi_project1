@@ -1,278 +1,480 @@
-# README_OPERATIONS  
-## Operational Guide for Runtime, Data Flow, and Troubleshooting
+# README_OPERATIONS
 
-This document explains how to operate the project safely, how the runtime pieces interact, and what to check when the system does not behave as expected.
+## Overview
 
-It is written against the current repository structure, not a generic template.
+This document explains how the system actually runs, how each subsystem interacts with the database, what configuration controls behavior, and what to verify when something fails.
+
+This repository is not only a crawler. It is a combined monitoring and intelligence pipeline with four major parts:
+
+1. web / darkweb crawler
+2. watchlist matching and alert subsystem
+3. Telegram intelligence collector
+4. wallet tracing and graph analysis subsystem
+
+All of them share the same PostgreSQL database.
 
 ---
 
-## 1. Runtime architecture
+## Full Runtime Architecture
 
-The project has four runtime planes that share the same PostgreSQL database.
-
-### A. Core monitoring plane
-Components:
-
+### Core monitoring plane
+Files:
 - `run.py`
-- `app/crawler/*`
+- `app/crawler/scheduler.py`
+- `app/crawler/fetcher.py`
+- `app/crawler/extractor.py`
+- `app/crawler/matcher.py`
+- `app/notifier/worker.py`
 - `app/api/*`
-- `app/notifier/*`
 
-This is the basic monitoring loop:
-target loading → crawl → extract → match → store → alert → UI
+Responsibilities:
+- load targets and watchlist data
+- schedule crawl jobs
+- fetch pages
+- extract indicators
+- compare extracted values against the watchlist
+- create hit records and alert records
+- expose results through API and UI
 
-### B. Telegram intelligence plane
-Components:
-
+### Telegram intelligence plane
+Files:
 - `app/telegram/telegram_bridge.py`
 - `app/telegram/scanner.py`
 - `app/telegram/recorder.py`
+- `app/telegram/bot_handler.py`
 
-This plane consumes Telegram links discovered from crawled pages and records additional intelligence into `tg_*` tables.
+Responsibilities:
+- consume Telegram links found during crawling
+- inspect channels, groups, bots, and invite links
+- store Telegram intelligence in `tg_*` tables
+- register discovered wallets into the wallet-tracking subsystem
 
-### C. Wallet analysis plane
-Components:
-
+### Wallet analysis plane
+Files:
 - `analyzer/worker.py`
 - `analyzer/tracer.py`
 - `analyzer/routes_graph.py`
+- `analyzer/etherscan_client.py`
+- `analyzer/mempool_client.py`
 
-This plane traces wallets and transaction edges and provides graph data to the UI.
+Responsibilities:
+- track BTC / EVM wallets
+- poll transaction history
+- create graph edges
+- expose wallet / graph data to frontend routes
 
-### D. External enrichment plane
-Components:
-
+### External enrichment plane
+Files:
 - `app/api/routes_rl.py`
 
-This plane fetches and caches ransomware.live statistics, groups, and recent victims.
+Responsibilities:
+- retrieve ransomware.live data
+- cache group and victim information
+- expose enrichment data through API
 
 ---
 
-## 2. Actual startup flow
+## Startup Behavior
 
-When `python run.py all` is executed, the code does the following:
+The main entry point is `run.py`.
 
-1. sets up logging
-2. opens the database pool
-3. runs `init_db(load_seed_data=True)`
-4. creates core tables, indexes, views, and migrations
-5. applies `analyzer/schema_wallet_tracker.sql`
-6. loads `targets.json` and `watchlist.json`
-7. ensures ransomware.live cache rows exist
-8. resets stale `targets.is_queued` flags
-9. starts:
-   - FastAPI server
-   - crawler scheduler
-   - alert worker
-   - Telegram bridge
+Supported modes:
 
-This is important because the application is designed to recover from interrupted queue state by clearing stale `is_queued` flags on startup.
+```bash
+python run.py all
+python run.py api
+python run.py crawler
+python run.py alert_worker
+python run.py init_db
+```
+
+### `python run.py all`
+Starts the complete application stack:
+- FastAPI server
+- crawler scheduler and workers
+- alert worker
+- Telegram bridge
+
+### `python run.py api`
+Starts the backend API and UI only.
+
+### `python run.py crawler`
+Starts crawl scheduling and crawl workers only.
+
+### `python run.py alert_worker`
+Starts alert delivery processing only.
+
+### `python run.py init_db`
+Initializes database schema, indexes, views, and wallet-tracker schema.
 
 ---
 
-## 3. Scheduler and crawler behavior
+## Detailed Startup Sequence
+
+When full startup is executed, the repository behavior is effectively:
+
+1. initialize logging
+2. initialize DB connections
+3. run schema initialization
+4. load `targets.json`
+5. load `watchlist.json`
+6. ensure cache structures exist
+7. reset stale queue flags if needed
+8. start application processes
+
+This means many apparent runtime issues are actually configuration or seed-data issues, not crawler logic issues.
+
+---
+
+## Docker Services
+
+`docker-compose.yml` defines the main runtime services:
+
+- `db` — PostgreSQL
+- `tor` — SOCKS proxy for `.onion` access
+- `app` — FastAPI + crawler + notifier + Telegram bridge
+- `worker` — wallet analysis worker
+
+### Common commands
+
+Start:
+```bash
+docker compose up --build
+```
+
+Background start:
+```bash
+docker compose up -d --build
+```
+
+Logs:
+```bash
+docker compose logs -f
+```
+
+Stop:
+```bash
+docker compose down
+```
+
+Full reset:
+```bash
+docker compose down -v
+```
+
+---
+
+## Local Development Run
+
+Install dependencies:
+```bash
+pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+Initialize database:
+```bash
+python run.py init_db
+```
+
+Run full stack:
+```bash
+python run.py all
+```
+
+---
+
+## Windows Helper Scripts
+
+### `run.bat`
+Used for container startup and log attachment.
+
+### `reset.bat`
+Stops containers and removes volumes. Use this when you need a full DB reset.
+
+### `restart_docker.bat`
+Restarts Docker Desktop and waits until Docker daemon becomes available again.
+
+Use `restart_docker.bat` when Windows Docker named pipe errors appear.
+
+---
+
+## Configuration Reference
+
+Start with `.env.example`.
+
+Important variables include:
+
+```env
+API_HOST=0.0.0.0
+API_PORT=8000
+API_KEY=changeme
+
+DATABASE_URL=postgresql://intel:intelpass@db:5432/intel
+
+POLL_INTERVAL_SECONDS=5
+WORKER_COUNT=4
+MAX_DEPTH=1
+MAX_PAGES_PER_HOST=20
+ALERT_COOLDOWN_SECONDS=3600
+
+DISCORD_WEBHOOK_URL=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+
+SCREENSHOT_ENABLED=true
+PLAYWRIGHT_TIMEOUT_MS=30000
+
+TOR_ENABLED=true
+TOR_FOR_ALL_REQUESTS=false
+TOR_SOCKS_HOST=tor
+TOR_SOCKS_PORT=9050
+TOR_PROXY_URL=socks5h://tor:9050
+
+REQUEST_TIMEOUT_SECONDS=60
+
+TELEGRAM_COLLECTOR_API_ID=
+TELEGRAM_COLLECTOR_API_HASH=
+TELEGRAM_COLLECTOR_SESSION=
+
+MORALIS_API_KEY=
+```
+
+### Configuration notes
+
+- `.onion` crawling requires Tor to be running and reachable.
+- normal web crawling can run without Tor unless all traffic is forced through Tor.
+- Telegram collection requires collector credentials.
+- alert delivery requires valid Discord webhook or Telegram bot credentials.
+- wallet tracing requires its external API configuration to be valid.
+
+---
+
+## Data Files
+
+### `targets.json`
+Defines crawl seeds.
+
+Typical structure:
+```json
+[
+  {
+    "seed_url": "http://exampleonion.onion/",
+    "label": "target-001"
+  }
+]
+```
+
+### `watchlist.json`
+Defines watchlist rules used during matching.
+
+Watchlist records are normalized during loading and then used for exact or regex matching.
+
+---
+
+## Scheduler and Queue Behavior
 
 Main file: `app/crawler/scheduler.py`
 
 ### Producer loop
-The producer loop:
-
-- wakes up every `POLL_INTERVAL_SECONDS`
-- clears cycle-local tracking sets
-- fetches due targets from DB
+The producer loop periodically:
+- checks due targets
 - marks them queued
-- enqueues their seed URLs
+- inserts seed URLs into the in-memory queue for workers
 
-### Due target condition
-A target is considered due when:
+### Due target logic
+A target is due when:
+- it is enabled
+- it is not already queued
+- it has never been fetched, or revisit interval expired
 
-- `enabled = TRUE`
-- `is_queued = FALSE`
-- `last_fetched_at IS NULL`  
-  or
-- `last_fetched_at <= NOW() - revisit_after_seconds`
-
-### Queue model
-Queue items contain:
-
+### Queue item contents
+Each queue item includes:
+- `target_id`
 - `url`
 - `depth`
-- `target_id`
 
-### URL handling
-The scheduler:
+### Depth control
+Depth expansion is limited by:
+- `MAX_DEPTH`
+- per-host page cap
+- link normalization and deduplication logic
 
-- normalizes URLs
-- removes fragments
-- rejects unsupported schemes
-- caps per-host crawl spread with `MAX_PAGES_PER_HOST`
-- uses basic URL classification to reduce low-value paths
-
-### Worker loop
+### Worker behavior
 Each worker:
-
-1. gets a queued URL
-2. calls `fetch_page()`
-3. saves page state
-4. extracts indicators
-5. stores extracted items
-6. matches against watchlist
-7. creates hits and alerts if needed
-8. enqueues discovered links if depth rules allow
-9. marks the target done or failed
+1. dequeues one URL
+2. fetches the page
+3. extracts text and links
+4. stores page evidence
+5. extracts indicators
+6. matches them
+7. creates or updates hits
+8. creates alerts when allowed
+9. enqueues next links if depth allows
 
 ---
 
-## 4. Fetching and Tor behavior
+## Fetching Behavior
 
 Main file: `app/crawler/fetcher.py`
 
-### Proxy rules
-The fetcher enables Tor when:
+### Request routing
+- `.onion` URLs use Tor proxy
+- normal URLs use direct requests unless `TOR_FOR_ALL_REQUESTS=true`
 
-- `TOR_ENABLED=true`
-- and either:
-  - the URL is `.onion`, or
-  - `TOR_FOR_ALL_REQUESTS=true`
-
-### Important consequence
-If Tor is not healthy, `.onion` crawling will fail even when the crawler itself is running normally.
-
-### TLS behavior
-For `.onion` URLs, the code relaxes certificate verification.  
-For normal web URLs, verification stays enabled.
-
-### Extracted fetch result
-Each fetch produces:
-
+### Result contents
+A successful fetch can provide:
 - final URL
-- host
-- status code
+- HTTP status code
 - title
-- raw HTML
-- plain text
+- HTML
+- text
 - content hash
-- normalized outgoing links
-- error message if fetch failed
+- outgoing links
+
+### Error handling
+When fetch fails, the system should still record failure context so the UI and logs reflect that a target was attempted.
+
+### Operational note
+If `.onion` targets never load, the first thing to verify is the Tor container and SOCKS configuration, not the scheduler.
 
 ---
 
-## 5. Extraction behavior
+## Evidence Storage
+
+The crawler stores evidence under `evidence/` such as:
+- HTML
+- extracted text
+- screenshots
+
+This evidence is used for:
+- later investigation
+- UI review
+- alert context
+- proof that a hit came from an actual fetched page
+
+---
+
+## Extraction Behavior
 
 Main file: `app/crawler/extractor.py`
 
-### Extracted indicator families
-- email
-- onion
-- domain
-- phone
-- username
-- ipv4
-- url
-- telegram
-- btc
-- api_key
-- hash
+The extractor scans page text and URLs for multiple indicator families.
+
+Supported types include:
+- `email`
+- `onion`
+- `domain`
+- `phone`
+- `username`
+- `ipv4`
+- `url`
+- `telegram`
+- `btc`
+- `api_key`
+- `hash`
+
+### Extractor normalization
+Extraction is not just regex matching. Values are normalized before storage and before matching.
+
+Examples of normalization goals:
+- reduce duplicate formatting variants
+- reject obvious placeholders
+- filter low-quality false positives
+- group semantically equivalent values
 
 ### False-positive filtering
-The extractor rejects common noise:
-
-- asset file suffixes as domains
-- example / localhost values
+The extractor attempts to suppress:
+- asset filenames misread as domains
+- placeholder domains
+- localhost or dummy URLs
 - malformed phone-like values
-- trivial usernames
-- low-quality repetitive hashes
-
-### Output shape
-Every extracted item contains:
-
-- `type`
-- `raw`
-- `normalized`
-- `group_key`
-
-This normalized representation is what later drives matching and deduplication.
+- low-confidence usernames
+- repetitive non-hash strings
 
 ---
 
-## 6. Watchlist matching semantics
+## Matching Semantics
 
 Main file: `app/crawler/matcher.py`
 
-This is one of the most important operational details in the project.
+This is operationally important because hit counts and alert counts are intentionally different.
 
-### Matching priority
+### Matching order
 1. exact normalized match
-2. regex full match
+2. regex match
 
-### Hit fingerprint
-Hit fingerprint is based on:
-
-- watchlist item id
+### Hit identity
+A hit is effectively scoped by:
+- watchlist rule
 - extracted type
 - normalized value
 - page URL
 
-So the same value on a new URL becomes a new hit record.
+That means the same value on another page can produce another hit.
 
-### Alert fingerprint
-Alert fingerprint is based on:
-
-- watchlist item id
+### Alert identity
+An alert is effectively scoped by:
+- watchlist rule
 - extracted type
 - normalized value
 
-So the same value is not alerted repeatedly just because it appeared on many URLs.
+That means repeated discovery of the same value does not necessarily create repeated alerts.
 
-### What this means in practice
-- repeated scan of same URL → existing hit updated
-- same matched value on another page → new hit may be recorded
-- alerts remain deduplicated at value level
+### Practical consequence
+- same value + same URL repeatedly fetched → update existing hit
+- same value + different URL → possibly another hit
+- same value overall → usually one alert identity
 
-This is why hit count and alert count will often differ.
+This is expected behavior, not necessarily a bug.
 
 ---
 
-## 7. Alert worker behavior
+## Alert Pipeline
 
-Main file: `app/notifier/worker.py`
+Main files:
+- `app/notifier/worker.py`
+- `app/notifier/discord.py`
+- `app/notifier/telegram.py`
 
-The alert worker:
+### Flow
+1. hit is created
+2. alert row is created in DB
+3. alert worker polls pending alerts
+4. formatted message is sent to channel
+5. row becomes `sent` or `failed`
 
-1. fetches pending alerts from `alerts`
-2. loads full hit detail
-3. sends message to the configured channel
-4. marks status as `sent` or `failed`
-
-### Supported outbound channels
+### Channels
 - Discord
 - Telegram
-- stdout for internal visibility
+- optional internal stdout visibility depending on implementation path
 
-### Important note
-The UI intentionally excludes `stdout` alerts from some counts.  
-So database rows and dashboard counts may not match if you compare them blindly.
+### Why this matters
+Because alerts are DB-backed, you can inspect failures after the fact instead of losing delivery state in memory.
 
 ---
 
-## 8. Telegram bridge behavior
+## Telegram Intelligence Collector
 
-Main file: `app/telegram/telegram_bridge.py`
+Main files:
+- `app/telegram/telegram_bridge.py`
+- `app/telegram/scanner.py`
+- `app/telegram/recorder.py`
 
-The Telegram bridge polls newly extracted Telegram links from `extracted_items` where `type = 'telegram'`.
+The Telegram collector consumes links already discovered by the crawler.
 
-### What it does
-- reads new Telegram link artifacts after web crawling
-- parses target IDs from `t.me/...` links
-- distinguishes private invites and public names
-- joins or inspects channels
-- detects bots
-- records raw messages and metadata
-- stores wallets and extracted artifacts
-- bridges BTC/ETH wallets into the wallet-tracking subsystem
+### What it can store
+Depending on the link and credentials:
+- channels
+- members
+- messages
+- admins
+- invite information
+- wallets
+- extracted text artifacts
 
-### Stored Telegram tables
+### Table families
+Common Telegram tables include:
 - `tg_channels`
 - `tg_channel_admins`
 - `tg_raw_messages`
@@ -281,78 +483,108 @@ The Telegram bridge polls newly extracted Telegram links from `extracted_items` 
 - `tg_private_channels`
 - `tg_members`
 
-### Practical risk
-If Telegram credentials are absent or invalid, the full `all` mode can still run, but Telegram collection will not be functional.
+### Operational limitation
+If collector credentials are missing, the main application can still run, but Telegram intelligence collection will be incomplete or inactive.
 
 ---
 
-## 9. Wallet analyzer behavior
+## Wallet Tracing and Graph Behavior
 
 Main files:
-
 - `analyzer/worker.py`
 - `analyzer/tracer.py`
 - `analyzer/routes_graph.py`
 
-### Worker role
-The analyzer worker processes:
+### Purpose
+The wallet subsystem tracks addresses discovered from Telegram or other sources and builds transaction relationships.
 
-- `trace_queue`
-- `tracked_wallets`
+### Split by chain family
+- BTC tracing uses mempool-style client logic
+- EVM tracing uses configured EVM history client logic
 
-It polls transaction history and inserts or updates graph edges.
+### Output
+Graph edges and wallet entities are persisted to DB and then exposed to the UI through `/api/graph/*`.
 
-### BTC and EVM split
-- BTC flow uses `mempool_client`
-- EVM flow uses the configured external history client
-
-### Graph API role
-`analyzer/routes_graph.py` reads tracked wallets and edges and exposes them to the frontend under `/api/graph/...`.
-
-### Operational consequence
-This subsystem is logically separate from the crawler, but the repository connects them through Telegram wallet extraction and shared PostgreSQL state.
+### Operational limitation
+If graph APIs return empty data, check wallet tables first before assuming UI problems.
 
 ---
 
-## 10. Database tables you should actually watch
+## Database Tables to Monitor
 
-### Core crawler health
+### Core crawler pipeline
 - `targets`
 - `pages`
 - `extracted_items`
+- `watchlist`
 - `watchlist_hits`
 - `alerts`
 
-### Telegram health
+### Telegram subsystem
+- `tg_channels`
+- `tg_channel_admins`
 - `tg_raw_messages`
 - `tg_wallets`
 - `tg_extracted_info`
+- `tg_private_channels`
+- `tg_members`
 
-### Enrichment health
+### Enrichment subsystem
 - `darkweb_posts`
 - `rl_info_cache`
 - `rl_victims_cache`
 
-### Wallet graph health
+### Wallet subsystem
 - `tracked_wallets`
 - `tracked_edges`
 - `trace_queue`
 
-If the UI looks empty, one of these tables is usually where the failure first becomes visible.
+If the UI looks empty, check table growth in that order.
 
 ---
 
-## 11. Normal operating procedure
+## UI and API Surface
 
-### First setup
+The frontend under `ui/` typically includes pages such as:
+- dashboard
+- targets
+- watchlist
+- pages
+- hits
+- alerts
+- analytics
+- investigation
+- incidents
+- graph
+- wallet views
+
+Important backend endpoints include:
+- `/health`
+- `/api/summary`
+- `/api/targets`
+- `/api/watchlist`
+- `/api/hits`
+- `/api/pages`
+- `/api/alerts`
+- `/api/rl/*`
+- `/api/graph/*`
+
+Use `/health` first. Then use `/api/summary` to confirm that the backend is reading live data.
+
+---
+
+## Normal Operating Procedure
+
+### First-time setup
 1. create `.env`
-2. confirm PostgreSQL connection values
-3. confirm Tor is available if using `.onion`
-4. fill `targets.json`
-5. fill `watchlist.json`
-6. run DB init or full stack
-7. verify `/health`
-8. verify `/api/summary`
+2. confirm database connection values
+3. confirm Tor settings if `.onion` crawling is needed
+4. prepare `targets.json`
+5. prepare `watchlist.json`
+6. initialize DB
+7. run full stack
+8. check `/health`
+9. check `/api/summary`
 
 ### Standard run
 ```bash
@@ -360,166 +592,139 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
+### Standard stop
+```bash
+docker compose down
+```
+
 ### Full reset
 ```bash
 docker compose down -v
 ```
 
-Or use:
-- `reset.bat`
-
-### Docker recovery on Windows
-Use:
-- `restart_docker.bat`
-
-This script kills Docker Desktop processes, shuts down WSL, restarts Docker Desktop, and waits until `docker info` succeeds.
+Or use `reset.bat` on Windows.
 
 ---
 
-## 12. Verification checklist after startup
+## Verification Checklist After Startup
 
-After starting the stack, verify in this order:
+Check in this order:
 
-### A. API
-- `GET /health` returns `{ "ok": true }`
-- root page loads
-- UI assets under `/ui/...` load
+### 1. API health
+- `/health` returns success
+- root or UI page loads
+- static assets load
 
-### B. Targets loaded
-- `targets` table is populated
+### 2. Targets loaded
+- targets exist in DB
 - `/api/summary` shows target count > 0
 
-### C. Crawling
-- `pages` rows increase
-- evidence files appear under `evidence/`
-- crawler logs show fetch activity
+### 3. Crawl activity
+- `pages` table grows
+- logs show fetch activity
+- evidence files appear
 
-### D. Extraction
-- `extracted_items` rows increase
+### 4. Extraction activity
+- `extracted_items` grows
 
-### E. Matching
-- `watchlist_hits` rows increase only when extracted values actually match the watchlist
+### 5. Match activity
+- `watchlist_hits` grows only when actual values match
 
-### F. Alerts
-- `alerts` rows appear as `pending` then `sent` or `failed`
+### 6. Alert activity
+- `alerts` rows appear
+- statuses change from pending to sent or failed
 
-### G. Telegram
-- `tg_*` tables increase only if Telegram links are extracted and bridge credentials are valid
+### 7. Telegram activity
+- `tg_*` tables grow only if Telegram links are present and credentials work
 
-### H. Wallet graph
-- `tracked_wallets` / `tracked_edges` increase only if wallet tracing is enabled and seeded
+### 8. Wallet activity
+- wallet tracking tables grow only if wallets are registered and analyzer is running
 
 ---
 
-## 13. Common failure patterns
+## Common Failure Patterns
 
-### 13.1 `.onion` pages never load
+### `.onion` pages do not load
 Check:
+- Tor container is running
+- Tor host and port match configuration
+- target itself is reachable
+- requests are actually going through SOCKS proxy
 
-- `tor` container is running
-- `TOR_ENABLED=true`
-- `TOR_SOCKS_HOST` and `TOR_SOCKS_PORT` are correct
-- target URLs are actually reachable
-
-### 13.2 UI loads but no data appears
+### UI loads but remains empty
 Check:
-
 - `targets.json` was loaded
-- `watchlist.json` is valid JSON
-- `pages` table is increasing
-- `/api/summary` is not zeroed
-- browser is not caching stale frontend assets
+- DB initialized correctly
+- scheduler is running
+- `/api/summary` has non-zero values
+- frontend is not using stale cached assets
 
-### 13.3 Alerts do not arrive
+### Alerts do not arrive
 Check:
-
-- alert channel credentials exist
-- `alerts` table contains pending rows
+- channel credentials are valid
 - alert worker is running
-- rows are becoming `failed`
-- the related webhook/chat IDs are correct
+- `alerts` table contains rows
+- rows are not stuck in failed state
 
-### 13.4 Hits appear but alerts are fewer than expected
-Usually normal.  
-Reason:
+### Hits exist but alerts are fewer
+Usually normal because:
+- hits are scoped by URL + value
+- alerts are scoped by value
 
-- hits are deduplicated per URL
-- alerts are deduplicated per value
-
-This is repository behavior, not necessarily a bug.
-
-### 13.5 Telegram collection does nothing
+### Telegram collector does nothing
 Check:
+- collector API credentials
+- extracted Telegram links actually exist
+- Telegram subsystem is enabled in runtime mode
 
-- `TELEGRAM_COLLECTOR_API_ID`
-- `TELEGRAM_COLLECTOR_API_HASH`
-- `TELEGRAM_COLLECTOR_SESSION`
-- extracted items actually contain `type='telegram'`
-
-### 13.6 Graph page is empty
+### Graph page is empty
 Check:
-
 - analyzer worker is running
-- `tracked_wallets` has rows
-- `tracked_edges` has rows
-- graph API router registered successfully at startup
+- wallet tables contain rows
+- graph routes are mounted successfully
 
-### 13.7 “Internal Server Error” causes JSON parse problems in UI
-This happens when frontend code expects JSON but the backend returns an HTML or plain-text error response.  
-Check backend logs first, then the corresponding API route.
+### UI shows JSON parse errors
+This usually means the frontend expected JSON but the backend returned an HTML/plain-text error. Inspect backend logs for the failing route.
 
-### 13.8 Reset did not change behavior
-If old data still appears, confirm:
-- containers were actually recreated
-- volumes were removed
-- the application is not reading preserved bind-mounted files
-- browser cache is cleared
+### Reset did not change behavior
+Check:
+- volumes were actually removed
+- browser cache was cleared
+- bind-mounted files were not preserved unexpectedly
 
 ---
 
-## 14. Operational advice for demos and submissions
+## Demo Guidance
 
-Because the project combines several subsystems, do not demo every feature at once unless credentials and external services are all verified.
+For stable demonstration, do not enable every subsystem at once unless all credentials are verified.
 
-### Stable demo order
-1. API + UI
+Recommended demo order:
+1. API and UI
 2. crawler
-3. evidence saving
+3. evidence output
 4. watchlist hits
 5. alerts
-6. Telegram bridge
+6. Telegram collector
 7. wallet graph
 8. ransomware.live enrichment
 
-This order isolates failures cleanly.
-
-### For classroom or evaluation use
-If reliability matters more than scope, keep the live demo centered on:
-
-- target crawling
-- indicator extraction
-- watchlist matching
-- evidence output
-- hit / alert UI
-
-Then describe Telegram and wallet graph as advanced extensions already integrated into the architecture.
+This makes failures easier to isolate.
 
 ---
 
-## 15. Configuration-sensitive files
+## Best Practices
 
-Treat these as operationally critical:
-
-- `.env`
-- `targets.json`
-- `watchlist.json`
-- `docker-compose.yml`
-- `run.py`
-
-If behavior suddenly changes, check these first before assuming a code defect.
+- keep `targets.json` and `watchlist.json` clean and normalized
+- reset DB when schema or seed format changes
+- verify each subsystem independently
+- inspect database tables before assuming UI issues
+- treat configuration mismatches as the first suspect
+- do not mix demo scope with unverified external integrations
 
 ---
 
-## 16. Final caution
+## Final Operational Note
 
-This codebase shares one database across crawler, Telegram bridge, ransomware enrichment, and wallet tracing. That design is powerful, but it also means one misconfigured subsystem can make the whole stack look broken. When debugging, isolate by subsystem and verify table growth one layer at a time.\n
+Because crawler, Telegram collector, enrichment logic, and wallet analysis all share one database, one broken subsystem can make the whole project look unhealthy. Debug one layer at a time:
+
+configuration → DB → scheduler → fetch → extract → match → alert → collector → analyzer → UI
