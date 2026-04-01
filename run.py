@@ -12,19 +12,18 @@ from app.crawler.scheduler import scheduler
 from app.init_db import init_db
 from app.notifier.worker import alert_worker
 from app.repository.targets import reset_queued_targets
+
 # [추가] 텔레그램 수집기 브릿지 병합
 from app.telegram.telegram_bridge import run_bridge as run_tg_bridge
 
-# 🔥 [그래프 기능 추가] 404 에러 해결을 위한 라우터 등록
+
+# 🔥 Graph API 라우터 등록
 try:
     from analyzer.routes_graph import router as graph_router
     app.include_router(graph_router, prefix="/api/graph", tags=["graph"])
     print("[INFO] Graph API router registered successfully.")
 except ImportError as e:
     print(f"[WARNING] Graph router import failed: {e}")
-    # 경로가 다를 경우를 대비 (필요시 아래 주석 해제)
-    # from app.analyzer.routes_graph import router as graph_router
-    # app.include_router(graph_router, prefix="/api/graph", tags=["graph"])
 
 
 def run_api() -> None:
@@ -39,7 +38,7 @@ async def run_alert_worker() -> None:
     await alert_worker.run()
 
 
-# 텔레그램 브릿지의 예외 처리를 위한 래퍼 함수 병합
+# 텔레그램 브릿지 안전 실행
 async def _safe_tg_bridge():
     try:
         await run_tg_bridge()
@@ -50,21 +49,24 @@ async def _safe_tg_bridge():
 
 
 async def run_all() -> None:
-    api_config = uvicorn.Config(app, host=settings.api_host, port=settings.api_port, log_level="info")
+    api_config = uvicorn.Config(
+        app,
+        host=settings.api_host,
+        port=settings.api_port,
+        log_level="info"
+    )
     api_server = uvicorn.Server(api_config)
-    
-    # 모든 서비스(API, Crawler, Alert, Telegram)를 태스크 리스트에 포함
+
     tasks = [
         asyncio.create_task(api_server.serve()),
         asyncio.create_task(run_crawler()),
         asyncio.create_task(run_alert_worker()),
-        asyncio.create_task(_safe_tg_bridge()),  # 텔레그램 브릿지 태스크 추가
+        asyncio.create_task(_safe_tg_bridge()),
     ]
-    
+
     try:
         await asyncio.gather(*tasks)
     finally:
-        # 종료 시 모든 태스크 취소
         for task in tasks:
             task.cancel()
 
@@ -83,18 +85,17 @@ def main() -> None:
 
     open_pool()
 
-    if args.mode == "init_db":
+    # ✅ DB 초기화
+    if args.mode in {"all", "api", "crawler", "alert_worker", "init_db"}:
         init_db(load_seed_data=True)
+
+    if args.mode == "init_db":
         close_pool()
         return
 
-    if args.mode in {"all", "api", "crawler", "alert_worker"}:
-        init_db(load_seed_data=True)
-
-    # 대기 중인 타겟 상태 초기화
+    # ✅ 큐 초기화 (conn 전달 필수)
     with get_conn() as conn:
         reset_queued_targets(conn)
-        conn.commit()
 
     try:
         if args.mode == "api":
@@ -104,7 +105,6 @@ def main() -> None:
         elif args.mode == "alert_worker":
             asyncio.run(run_alert_worker())
         else:
-            # 기본값 'all'일 때 모든 비동기 서비스 실행
             asyncio.run(run_all())
     finally:
         close_pool()

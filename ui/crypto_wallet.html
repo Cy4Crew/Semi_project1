@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Darkweb Monitor · Crypto Wallet</title>
+  <link rel="stylesheet" href="/ui/assets/styles.css" />
+</head>
+<body>
+<script src="/ui/assets/common.js"></script>
+<script>
+installPage({
+  pageKey: 'crypto-wallet',
+  heroEyebrow: 'Threat Tracking',
+  heroTitle: 'Crypto Wallet',
+  heroDesc: '수집된 가상화폐 지갑 주소를 depth=10까지 추적하고 노드 네트워크를 구축한다. 일정 금액 이상 입금 시 디스코드 알림을 발송한다.',
+  heroMeta: ['depth=10 tracing', 'discord alert', 'BTC / ETH / XMR'],
+  actionHtml: '<button class="btn primary" id="heroRefreshBtn">Refresh</button>',
+  sidebarExtra: `
+    <div class="card-title">Wallet Filters</div>
+    <label class="field-label" for="coinTypeFilter">Coin Type</label>
+    <select id="coinTypeFilter" class="control">
+      <option value="">전체</option>
+      <option value="BTC">Bitcoin (BTC)</option>
+      <option value="ETH">Ethereum (ETH)</option>
+      <option value="XMR">Monero (XMR)</option>
+    </select>
+    <label class="field-label" for="alertThreshold">Alert 기준 ($)</label>
+    <input id="alertThreshold" class="control" type="number" placeholder="10000" value="10000" />
+    <label class="field-label" for="walletSearch">지갑 주소 검색</label>
+    <input id="walletSearch" class="control" type="text" placeholder="1A2B3C..." />`,
+  mainHtml: `
+    <div class="hidden empty" id="errorBox"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
+      <article class="metric"><div class="metric-label">Tracked Wallets</div><div class="metric-value" id="mWallets">-</div><div class="metric-foot">추적 중인 주소</div></article>
+      <article class="metric"><div class="metric-label">Alerts Triggered</div><div class="metric-value" id="mAlerts">-</div><div class="metric-foot">임계값 초과 알림</div></article>
+      <article class="metric"><div class="metric-label">Max Depth</div><div class="metric-value">10</div><div class="metric-foot">추적 depth</div></article>
+    </div>
+    <section class="split">
+      <div class="panel" style="padding:24px">
+        <div class="card-title">Wallet Registry</div>
+        <p class="muted" style="margin-bottom:16px;font-size:13px">다크웹·텔레그램에서 수집된 가상화폐 지갑 목록입니다.</p>
+        <div id="walletTable">
+          <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#7f95c8;font-weight:900;border-bottom:1px solid rgba(255,255,255,.06)">
+            <span>Address</span><span>Coin</span><span>Source</span><span>Last Tx</span>
+          </div>
+          <div style="padding:40px;text-align:center;color:#7f95c8;font-size:13px">
+            ⚡ 지갑 추적 데이터 대기 중
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="padding:24px">
+        <div class="card-title">Node Graph Preview</div>
+        <p class="muted" style="font-size:13px">Graph 탭에서 depth 시각화 전체 보기 가능</p>
+        <div style="padding:60px;text-align:center;color:#7f95c8;font-size:13px;border:1px dashed rgba(255,255,255,.1);border-radius:12px;margin-top:16px">
+          🔗 지갑 노드 네트워크<br/>Graph 탭 연동 예정
+        </div>
+      </div>
+    </section>`
+});
+
+async function loadWallets() {
+  // TODO: fetch('/api/tracking/wallets') 연동
+  setUpdated(nowStr());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  attachRefresh(loadWallets);
+  loadWallets();
+});
+</script>
+</body>
+</html>

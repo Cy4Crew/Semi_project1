@@ -1,4 +1,5 @@
-[ { "seed_url": "http://bfdxjkv5e2z3ilrifzbnvxxvhbzsj67akjpj3zc6smzr4vv6oz565gyd.onion/", "label": "onion-001" },
+[ 
+  { "seed_url": "http://bfdxjkv5e2z3ilrifzbnvxxvhbzsj67akjpj3zc6smzr4vv6oz565gyd.onion/", "label": "onion-001" },
   { "seed_url": "http://suprbaydvdcaynfo4dgdzgxb4zuso7rftlil5yg5kqjefnw4wq4ulcad.onion/", "label": "onion-002" },
   { "seed_url": "http://darkfailllnkf4vf.onion/", "label": "onion-003" },
   { "seed_url": "http://nzxj65x32vh2fkhk.onion/", "label": "onion-004" },
@@ -9,19 +10,88 @@
   { "seed_url": "http://tor66sezptuu2nta.onion/", "label": "onion-009" },
   { "seed_url": "http://intelx3fayzghw6k.onion/", "label": "onion-010" },
   { "seed_url": "http://mail2tor2zyjdctd.onion/", "label": "onion-011" },
-
-  { "seed_url": "https://4cheat.org/", "label": "forum-001" },
-  { "seed_url": "https://crackingx.com/", "label": "forum-002" },
-  { "seed_url": "https://hackforums.net/", "label": "forum-003" },
-  { "seed_url": "https://nulled.to/", "label": "forum-004" },
-  { "seed_url": "https://0x00sec.org/", "label": "forum-005" },
-  { "seed_url": "https://raidforums.com/", "label": "forum-006" },
-
-  { "seed_url": "https://pastebin.com/", "label": "paste-001" },
-  { "seed_url": "https://controlc.com/", "label": "paste-002" },
-  { "seed_url": "https://justpaste.it/", "label": "paste-003" },
-
-  { "seed_url": "https://cryptogid.org/", "label": "crypto-001" },
-  { "seed_url": "https://bitcointalk.org/", "label": "crypto-002" },
-  { "seed_url": "https://darknetworld.com/", "label": "market-001" }
+  {
+    "seed_url": "https://4cheat.org/",
+    "label": "forum-001"
+  },
+  {
+    "seed_url": "https://crackingx.com/",
+    "label": "forum-002"
+  },
+  {
+    "seed_url": "https://hackforums.net/",
+    "label": "forum-003"
+  },
+  {
+    "seed_url": "https://nulled.to/",
+    "label": "forum-004"
+  },
+  {
+    "seed_url": "https://0x00sec.org/",
+    "label": "forum-005"
+  },
+  {
+    "seed_url": "https://raidforums.com/",
+    "label": "forum-006"
+  },
+  {
+    "seed_url": "https://pastebin.com/",
+    "label": "paste-001"
+  },
+  {
+    "seed_url": "https://controlc.com/",
+    "label": "paste-002"
+  },
+  {
+    "seed_url": "https://justpaste.it/",
+    "label": "paste-003"
+  },
+  {
+    "seed_url": "https://cryptogid.org/",
+    "label": "crypto-001"
+  },
+  {
+    "seed_url": "https://bitcointalk.org/",
+    "label": "crypto-002"
+  },
+  {
+    "seed_url": "https://darknetworld.com/",
+    "label": "market-001"
+  },
+  {
+    "seed_url": "http://genesis6ixpb5mcy4kudybtw5op2wqlrkocfogbnenz3c647ibqixiad.onion/",
+    "label": "onion-023"
+  },
+  {
+    "seed_url": "http://beast6azu4f7fxjakiayhnssybibsgjnmy77a6duufqw5afjzfjhzuqd.onion/",
+    "label": "onion-024"
+  },
+  {
+    "seed_url": "http://incblog6qu4y4mm4zvw5nrmue6qbwtgjsxpw6b7ixzssu36tsajldoad.onion/",
+    "label": "onion-025"
+  },
+  {
+    "seed_url": "http://embargobe3n5okxyzqphpmk3moinoap2snz5k6765mvtkk7hhi544jid.onion/",
+    "label": "onion-026"
+  },
+  {
+    "seed_url": "http://ransomocmou6mnbquqz44ewosbkjk3o5qjsl3orawojexfook2j7esad.onion/",
+    "label": "onion-027"
+  },
+  {
+    "seed_url": "http://fjg4zi4opkxkvdz7mvwp7h6goe4tcby3hhkrz43pht4j3vakhy75znyd.onion/",
+    "label": "onion-028"
+  },
+  {
+    "seed_url": "http://mbrlkbtq5jonaqkurjwmxftytyn2ethqvbxfu4rgjbkkknndqwae6byd.onion/",
+    "label": "onion-029"
+  },
+  {
+    "seed_url": "http://payloadrz5yw227brtbvdqpnlhq3rdcdekdnn3rgucbcdeawq2v6vuyd.onion/",
+    "label": "onion-030"
+  },
+  {
+    "seed_url": "http://lockbitapt67g6rwzjbcxnww5efpg4qok6vpfeth7wx3okj52ks4wtad.onion/",
+    "label": "onion-031"
+  }
 ]

@@ -11,15 +11,17 @@ const API = {
 };
 
 const NAV = [
-  { key: 'overview', href: '/', label: 'Overview' },
-  { key: 'hits', href: '/ui/hits.html', label: 'Hits' },
-  { key: 'alerts', href: '/ui/alerts.html', label: 'Alerts' },
-  { key: 'pages', href: '/ui/pages.html', label: 'Pages' },
-  { key: 'targets', href: '/ui/targets.html', label: 'Targets' },
-  { key: 'watchlist', href: '/ui/watchlist.html', label: 'Watchlist' },
-  { key: 'investigation', href: '/ui/investigation.html', label: 'Investigation' },
-  { key: 'graph', href: '/ui/graph.html', label: 'Graph' },
-  { key: 'analytics', href: '/ui/analytics.html', label: 'Analytics' },
+  { key: 'overview',      href: '/',                        label: 'Overview',          section: 'overview' },
+  { key: 'hits',          href: '/ui/hits.html',            label: 'Hits',              section: 'overview' },
+  { key: 'alerts',        href: '/ui/alerts.html',          label: 'Alerts',            section: 'overview' },
+  { key: 'pages',         href: '/ui/pages.html',           label: 'Pages',             section: 'overview' },
+  { key: 'targets',       href: '/ui/targets.html',         label: 'Targets',           section: 'analysis' },
+  { key: 'watchlist',     href: '/ui/watchlist.html',       label: 'Watchlist',         section: 'analysis' },
+  { key: 'investigation', href: '/ui/investigation.html',   label: 'Investigation',     section: 'analysis' },
+  { key: 'graph',         href: '/ui/graph.html',           label: 'Graph',             section: 'analysis' },
+  { key: 'analytics',     href: '/ui/analytics.html',       label: 'Analytics',         section: 'analysis' },
+  { key: 'rl-dashboard',      href: '/ui/rl_dashboard.html',      label: 'Ransomware.live',   section: 'tracking' },
+  { key: 'victims',           href: '/ui/victims.html',           label: 'Victims',           section: 'tracking' },
 ];
 
 const $ = (s) => document.querySelector(s);
@@ -116,8 +118,10 @@ function markActiveNav(pageKey) {
 }
 
 function sidebarHtml(pageKey) {
-  const primary = NAV.slice(0, 4).map(x => `<a class="nav-link ${pageKey === x.key ? 'active' : ''}" data-page="${x.key}" href="${x.href}">${x.label}</a>`).join('');
-  const secondary = NAV.slice(4).map(x => `<a class="nav-link ${pageKey === x.key ? 'active' : ''}" data-page="${x.key}" href="${x.href}">${x.label}</a>`).join('');
+  const navBySection = (section) =>
+    NAV.filter(x => x.section === section)
+       .map(x => `<a class="nav-link ${pageKey === x.key ? 'active' : ''}" data-page="${x.key}" href="${x.href}">${x.label}</a>`)
+       .join('');
   return `
     <aside class="sidebar">
       <div class="brand">
@@ -130,12 +134,17 @@ function sidebarHtml(pageKey) {
 
       <div class="nav-group">
         <div class="nav-title">Overview</div>
-        <div class="nav">${primary}</div>
+        <div class="nav">${navBySection('overview')}</div>
       </div>
 
       <div class="nav-group">
         <div class="nav-title">Analysis</div>
-        <div class="nav">${secondary}</div>
+        <div class="nav">${navBySection('analysis')}</div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">Tracking</div>
+        <div class="nav">${navBySection('tracking')}</div>
       </div>
 
       <div class="status-card">
