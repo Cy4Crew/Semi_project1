@@ -1,638 +1,525 @@
-# README_OPERATIONS
+# README_OPERATIONS  
+## Operational Guide for Runtime, Data Flow, and Troubleshooting
 
-This document explains how the system behaves internally, how to operate it safely, and how to diagnose the most common runtime failures.
+This document explains how to operate the project safely, how the runtime pieces interact, and what to check when the system does not behave as expected.
 
-It is intended to complement `README.md`, not replace it.
-
----
-
-## Runtime Components
-
-The application is composed of three main runtime pieces:
-
-### API server
-Defined through FastAPI in `app/api/main.py`.
-
-Responsibilities:
-
-- serves the dashboard and static UI
-- exposes read and write API endpoints
-- serves evidence files
-- provides summary and reload functionality
-
-### Scheduler / crawler
-Implemented mainly in `app/crawler/scheduler.py`.
-
-Responsibilities:
-
-- picks due targets from the database
-- normalizes and enqueues URLs
-- limits crawl spread per host
-- processes pages with asynchronous workers
-- triggers extraction and matching
-- saves crawl evidence and page state
-
-### Alert worker
-Implemented in `app/notifier/worker.py`.
-
-Responsibilities:
-
-- reads pending alerts from the database
-- fetches hit details
-- formats outbound messages
-- sends notifications to stdout, Discord, or Telegram
-- marks alerts as sent or failed
+It is written against the current repository structure, not a generic template.
 
 ---
 
-## Startup Flow
+## 1. Runtime architecture
 
-When the application starts through `run.py`, the sequence is:
+The project has four runtime planes that share the same PostgreSQL database.
 
-1. logging is initialized
-2. connection pool is opened
-3. database schema is initialized if needed
-4. targets and watchlist are loaded from seed files
-5. queued target state is reset
-6. selected runtime mode is started
+### A. Core monitoring plane
+Components:
 
-This startup behavior is important because stale queue flags from earlier crashes would otherwise block targets from being scheduled again.
+- `run.py`
+- `app/crawler/*`
+- `app/api/*`
+- `app/notifier/*`
+
+This is the basic monitoring loop:
+target loading → crawl → extract → match → store → alert → UI
+
+### B. Telegram intelligence plane
+Components:
+
+- `app/telegram/telegram_bridge.py`
+- `app/telegram/scanner.py`
+- `app/telegram/recorder.py`
+
+This plane consumes Telegram links discovered from crawled pages and records additional intelligence into `tg_*` tables.
+
+### C. Wallet analysis plane
+Components:
+
+- `analyzer/worker.py`
+- `analyzer/tracer.py`
+- `analyzer/routes_graph.py`
+
+This plane traces wallets and transaction edges and provides graph data to the UI.
+
+### D. External enrichment plane
+Components:
+
+- `app/api/routes_rl.py`
+
+This plane fetches and caches ransomware.live statistics, groups, and recent victims.
 
 ---
 
-## Execution Modes in Practice
+## 2. Actual startup flow
 
-### `python run.py all`
-Use this for normal single-process development or small deployments.  
-It starts:
+When `python run.py all` is executed, the code does the following:
 
-- FastAPI
-- crawler scheduler/workers
-- alert worker
+1. sets up logging
+2. opens the database pool
+3. runs `init_db(load_seed_data=True)`
+4. creates core tables, indexes, views, and migrations
+5. applies `analyzer/schema_wallet_tracker.sql`
+6. loads `targets.json` and `watchlist.json`
+7. ensures ransomware.live cache rows exist
+8. resets stale `targets.is_queued` flags
+9. starts:
+   - FastAPI server
+   - crawler scheduler
+   - alert worker
+   - Telegram bridge
 
-### `python run.py api`
-Use this when you only need UI/API inspection.
-
-### `python run.py crawler`
-Use this when you want to isolate crawling behavior and confirm whether pages, extracted items, and hits are being generated.
-
-### `python run.py alert_worker`
-Use this when hits are already being created but alerts are not being delivered.
-
-### `python run.py init_db`
-Use this after schema changes, first setup, or after a database reset.
+This is important because the application is designed to recover from interrupted queue state by clearing stale `is_queued` flags on startup.
 
 ---
 
-## Database Schema Notes
+## 3. Scheduler and crawler behavior
 
-The schema is created in `app/init_db.py`.
+Main file: `app/crawler/scheduler.py`
 
-### `targets`
-Stores configured crawl seeds.
+### Producer loop
+The producer loop:
 
-Important fields:
+- wakes up every `POLL_INTERVAL_SECONDS`
+- clears cycle-local tracking sets
+- fetches due targets from DB
+- marks them queued
+- enqueues their seed URLs
 
-- `seed_url`
-- `enabled`
-- `is_queued`
-- `last_queued_at`
-- `last_fetched_at`
+### Due target condition
+A target is considered due when:
 
-### `pages`
-Stores fetched page results.
+- `enabled = TRUE`
+- `is_queued = FALSE`
+- `last_fetched_at IS NULL`  
+  or
+- `last_fetched_at <= NOW() - revisit_after_seconds`
 
-Important fields:
+### Queue model
+Queue items contain:
 
 - `url`
-- `host`
-- `title`
-- `status_code`
-- `fetched_at`
-- `content_hash`
-- `is_meaningful`
-- `skip_reason`
-- `content_changed`
-- `raw_html_path`
-- `text_dump_path`
-- `screenshot_path`
-- `error_message`
+- `depth`
+- `target_id`
 
-### `extracted_items`
-Stores normalized extracted indicators.
+### URL handling
+The scheduler:
 
-Important fields:
+- normalizes URLs
+- removes fragments
+- rejects unsupported schemes
+- caps per-host crawl spread with `MAX_PAGES_PER_HOST`
+- uses basic URL classification to reduce low-value paths
+
+### Worker loop
+Each worker:
+
+1. gets a queued URL
+2. calls `fetch_page()`
+3. saves page state
+4. extracts indicators
+5. stores extracted items
+6. matches against watchlist
+7. creates hits and alerts if needed
+8. enqueues discovered links if depth rules allow
+9. marks the target done or failed
+
+---
+
+## 4. Fetching and Tor behavior
+
+Main file: `app/crawler/fetcher.py`
+
+### Proxy rules
+The fetcher enables Tor when:
+
+- `TOR_ENABLED=true`
+- and either:
+  - the URL is `.onion`, or
+  - `TOR_FOR_ALL_REQUESTS=true`
+
+### Important consequence
+If Tor is not healthy, `.onion` crawling will fail even when the crawler itself is running normally.
+
+### TLS behavior
+For `.onion` URLs, the code relaxes certificate verification.  
+For normal web URLs, verification stays enabled.
+
+### Extracted fetch result
+Each fetch produces:
+
+- final URL
+- host
+- status code
+- title
+- raw HTML
+- plain text
+- content hash
+- normalized outgoing links
+- error message if fetch failed
+
+---
+
+## 5. Extraction behavior
+
+Main file: `app/crawler/extractor.py`
+
+### Extracted indicator families
+- email
+- onion
+- domain
+- phone
+- username
+- ipv4
+- url
+- telegram
+- btc
+- api_key
+- hash
+
+### False-positive filtering
+The extractor rejects common noise:
+
+- asset file suffixes as domains
+- example / localhost values
+- malformed phone-like values
+- trivial usernames
+- low-quality repetitive hashes
+
+### Output shape
+Every extracted item contains:
 
 - `type`
 - `raw`
 - `normalized`
 - `group_key`
-- `first_seen_at`
 
-Unique constraint:
-
-- `(page_id, type, normalized)`
-
-### `watchlist`
-Stores monitoring rules.
-
-Important fields:
-
-- `type`
-- `value`
-- `normalized`
-- `label`
-- `enabled`
-- `is_regex`
-
-### `watchlist_hits`
-Stores match events.
-
-Important fields:
-
-- `extracted_item_id`
-- `watchlist_id`
-- `page_id`
-- `matched_value`
-- `fingerprint`
-- `first_seen_at`
-- `last_seen_at`
-- `last_alerted_at`
-
-### `alerts`
-Stores delivery attempts per channel.
-
-Important fields:
-
-- `hit_id`
-- `channel`
-- `status`
-- `error_message`
-- `created_at`
-- `sent_at`
-- `alert_fingerprint`
+This normalized representation is what later drives matching and deduplication.
 
 ---
 
-## Seed Loading Behavior
+## 6. Watchlist matching semantics
 
-The project uses two seed files:
+Main file: `app/crawler/matcher.py`
 
-- `targets.json`
-- `watchlist.json`
+This is one of the most important operational details in the project.
 
-They are loaded by `app/core/seed_loader.py`.
+### Matching priority
+1. exact normalized match
+2. regex full match
 
-### Targets
-`load_targets_file()` reads a JSON array of target objects and upserts them into the database.
+### Hit fingerprint
+Hit fingerprint is based on:
 
-### Watchlist
-`load_watchlist_file()` accepts:
+- watchlist item id
+- extracted type
+- normalized value
+- page URL
 
-- a single `pattern`
-- multiple `patterns`
-- regex entries via `is_regex=true`
+So the same value on a new URL becomes a new hit record.
 
-If a regex entry fails compilation, it is skipped.  
-If a watchlist item is duplicated, it is ignored.
+### Alert fingerprint
+Alert fingerprint is based on:
 
-Operationally, this means a malformed `watchlist.json` may silently reduce effective coverage unless you inspect logs and counts.
+- watchlist item id
+- extracted type
+- normalized value
 
----
+So the same value is not alerted repeatedly just because it appeared on many URLs.
 
-## API Operation Notes
+### What this means in practice
+- repeated scan of same URL → existing hit updated
+- same matched value on another page → new hit may be recorded
+- alerts remain deduplicated at value level
 
-### Public read endpoints
-
-These are useful for runtime validation:
-
-- `GET /health`
-- `GET /api/summary`
-- `GET /api/targets`
-- `GET /api/watchlist`
-- `GET /api/pages/recent`
-- `GET /api/extracted/recent`
-- `GET /api/hits/recent`
-- `GET /api/alerts/recent`
-
-### Protected write endpoints
-
-These require the configured API key:
-
-- `POST /api/reload`
-- `POST /api/targets`
-- `DELETE /api/targets/{target_id}`
-- `POST /api/watchlist`
-- `DELETE /api/watchlist/{watchlist_id}`
-
-If write operations fail unexpectedly, verify the API key check in `app/core/security.py` and the client-side request headers.
+This is why hit count and alert count will often differ.
 
 ---
 
-## Crawl Scheduler Behavior
+## 7. Alert worker behavior
 
-The scheduler is the core of the monitoring loop.
+Main file: `app/notifier/worker.py`
 
-### Producer loop
-The producer periodically:
+The alert worker:
 
-- clears cycle-local host counters
-- clears cycle-local seen URL state
-- queries due targets from the database
-- normalizes their URLs
-- marks them queued
-- inserts them into the async queue
+1. fetches pending alerts from `alerts`
+2. loads full hit detail
+3. sends message to the configured channel
+4. marks status as `sent` or `failed`
 
-The interval is controlled by:
+### Supported outbound channels
+- Discord
+- Telegram
+- stdout for internal visibility
 
-```env
-POLL_INTERVAL_SECONDS
-```
-
-### Worker loop
-Each worker:
-
-1. takes one queued item
-2. fetches the page
-3. extracts indicators
-4. saves page metadata/evidence
-5. saves extracted items
-6. matches extracted data to the watchlist
-7. enqueues links for deeper crawling when allowed
-8. updates target state
-
-### URL filtering and priority
-The scheduler defines:
-
-- hard-block patterns
-- low-priority patterns
-- high-priority patterns
-
-These are used to avoid noisy or low-value URLs such as login/register pages and to favor useful content such as thread or forum pages.
-
-If crawling looks shallow or repetitive, inspect these filter lists first.
+### Important note
+The UI intentionally excludes `stdout` alerts from some counts.  
+So database rows and dashboard counts may not match if you compare them blindly.
 
 ---
 
-## Depth Expansion
+## 8. Telegram bridge behavior
 
-Depth expansion is controlled primarily by:
+Main file: `app/telegram/telegram_bridge.py`
 
-```env
-MAX_DEPTH
-```
+The Telegram bridge polls newly extracted Telegram links from `extracted_items` where `type = 'telegram'`.
 
-Operational effects:
+### What it does
+- reads new Telegram link artifacts after web crawling
+- parses target IDs from `t.me/...` links
+- distinguishes private invites and public names
+- joins or inspects channels
+- detects bots
+- records raw messages and metadata
+- stores wallets and extracted artifacts
+- bridges BTC/ETH wallets into the wallet-tracking subsystem
 
-- `0` or very low depth reduces exploration
-- higher depth increases coverage but also queue volume and storage growth
+### Stored Telegram tables
+- `tg_channels`
+- `tg_channel_admins`
+- `tg_raw_messages`
+- `tg_wallets`
+- `tg_extracted_info`
+- `tg_private_channels`
+- `tg_members`
 
-If you only ever see seed pages and never internal links, possible causes are:
-
-- `MAX_DEPTH` too low
-- link filtering too strict
-- fetched pages contain little or no valid link data
-- page fetch failed before extraction/expansion
-
----
-
-## Fetching Behavior
-
-Fetching is implemented in `app/crawler/fetcher.py`.
-
-Operational considerations:
-
-- normal web pages may be fetched directly
-- `.onion` pages require Tor routing
-- when `TOR_FOR_ALL_REQUESTS=true`, all traffic is routed through Tor
-- Tor routing is slower and can introduce timeouts or transient failures
-- request timeout is controlled by `REQUEST_TIMEOUT_SECONDS`
-
-Typical failure modes:
-
-- bad Tor proxy host/port
-- onion service unreachable
-- remote site blocking or timing out
-- malformed URLs in target seeds
+### Practical risk
+If Telegram credentials are absent or invalid, the full `all` mode can still run, but Telegram collection will not be functional.
 
 ---
 
-## Extraction Behavior
+## 9. Wallet analyzer behavior
 
-Extraction happens in `app/crawler/extractor.py`.
+Main files:
 
-The extractor produces structured items with fields such as:
+- `analyzer/worker.py`
+- `analyzer/tracer.py`
+- `analyzer/routes_graph.py`
 
-```python
-{
-    "type": "...",
-    "raw": "...",
-    "normalized": "...",
-    "group_key": "..."
-}
-```
+### Worker role
+The analyzer worker processes:
 
-The exact supported indicator set depends on extractor implementation, but operationally you should expect normalization to matter more than raw string appearance.
+- `trace_queue`
+- `tracked_wallets`
 
-If visible content clearly contains a value but no hit is generated, first check whether:
+It polls transaction history and inserts or updates graph edges.
 
-- the extractor is classifying it as the expected type
-- normalization changed the value unexpectedly
-- the watchlist entry is using the wrong type
+### BTC and EVM split
+- BTC flow uses `mempool_client`
+- EVM flow uses the configured external history client
+
+### Graph API role
+`analyzer/routes_graph.py` reads tracked wallets and edges and exposes them to the frontend under `/api/graph/...`.
+
+### Operational consequence
+This subsystem is logically separate from the crawler, but the repository connects them through Telegram wallet extraction and shared PostgreSQL state.
 
 ---
 
-## Matching Behavior
+## 10. Database tables you should actually watch
 
-Matching is handled in `app/crawler/matcher.py`.
-
-The matcher compares extracted normalized values to watchlist rules and, when applicable, creates:
-
+### Core crawler health
+- `targets`
+- `pages`
+- `extracted_items`
 - `watchlist_hits`
 - `alerts`
 
-Typical causes of missing hits:
+### Telegram health
+- `tg_raw_messages`
+- `tg_wallets`
+- `tg_extracted_info`
 
-- type mismatch
-  - for example, a domain placed in an email watchlist rule
-- normalization mismatch
-- regex too strict
-- watchlist entry disabled
-- extracted item never saved due to upstream failure
+### Enrichment health
+- `darkweb_posts`
+- `rl_info_cache`
+- `rl_victims_cache`
 
-Typical causes of repeated noisy hits:
+### Wallet graph health
+- `tracked_wallets`
+- `tracked_edges`
+- `trace_queue`
 
-- regex too broad
-- watchlist built from generic tokens
-- target pages contain common high-frequency values
-
----
-
-## Alert Worker Behavior
-
-The alert worker polls pending alerts in small batches.
-
-For each alert it:
-
-1. loads hit detail from the database
-2. builds a formatted message
-3. sends to the requested channel
-4. updates status to sent or failed
-
-### Supported channels
-
-- `stdout`
-- `discord`
-- `telegram`
-
-### Alert content usually includes
-
-- watchlist type
-- watchlist value
-- matched value
-- source URL
-- page title, if present
-- watchlist label, if present
-- screenshot path, if present
-
-### Cooldown
-
-Cooldown logic is driven by:
-
-```env
-ALERT_COOLDOWN_SECONDS
-```
-
-This prevents the same hit from triggering repeated alerts too frequently.
-
-If hits exist but alerts are missing, verify whether the system suppressed new alert creation due to cooldown.
+If the UI looks empty, one of these tables is usually where the failure first becomes visible.
 
 ---
 
-## Screenshot Operation
+## 11. Normal operating procedure
 
-Screenshots are handled by `app/crawler/screenshot.py`.
+### First setup
+1. create `.env`
+2. confirm PostgreSQL connection values
+3. confirm Tor is available if using `.onion`
+4. fill `targets.json`
+5. fill `watchlist.json`
+6. run DB init or full stack
+7. verify `/health`
+8. verify `/api/summary`
 
-Requirements:
-
-- `SCREENSHOT_ENABLED=true`
-- Playwright installed
-- browser launch available in the environment
-
-Output directory:
-
-```text
-evidence/screenshots/
+### Standard run
+```bash
+docker compose up -d --build
+docker compose logs -f
 ```
 
-Operational caveats:
+### Full reset
+```bash
+docker compose down -v
+```
 
-- screenshots can fail on slow pages or protected pages
-- Tor + Playwright will be slower than direct browsing
-- screenshot failure should not be treated as proof that the crawl failed completely
+Or use:
+- `reset.bat`
 
-The API also contains compatibility routes for screenshot paths that may already be stored in older formats.
+### Docker recovery on Windows
+Use:
+- `restart_docker.bat`
+
+This script kills Docker Desktop processes, shuts down WSL, restarts Docker Desktop, and waits until `docker info` succeeds.
 
 ---
 
-## Evidence and Persistence
+## 12. Verification checklist after startup
 
-The project persists crawl evidence into:
+After starting the stack, verify in this order:
 
-```text
-evidence/
-├── html/
-├── text/
-└── screenshots/
-```
+### A. API
+- `GET /health` returns `{ "ok": true }`
+- root page loads
+- UI assets under `/ui/...` load
 
-What to preserve in real deployments:
+### B. Targets loaded
+- `targets` table is populated
+- `/api/summary` shows target count > 0
 
-- PostgreSQL volume
-- `evidence/` directory
+### C. Crawling
+- `pages` rows increase
+- evidence files appear under `evidence/`
+- crawler logs show fetch activity
+
+### D. Extraction
+- `extracted_items` rows increase
+
+### E. Matching
+- `watchlist_hits` rows increase only when extracted values actually match the watchlist
+
+### F. Alerts
+- `alerts` rows appear as `pending` then `sent` or `failed`
+
+### G. Telegram
+- `tg_*` tables increase only if Telegram links are extracted and bridge credentials are valid
+
+### H. Wallet graph
+- `tracked_wallets` / `tracked_edges` increase only if wallet tracing is enabled and seeded
+
+---
+
+## 13. Common failure patterns
+
+### 13.1 `.onion` pages never load
+Check:
+
+- `tor` container is running
+- `TOR_ENABLED=true`
+- `TOR_SOCKS_HOST` and `TOR_SOCKS_PORT` are correct
+- target URLs are actually reachable
+
+### 13.2 UI loads but no data appears
+Check:
+
+- `targets.json` was loaded
+- `watchlist.json` is valid JSON
+- `pages` table is increasing
+- `/api/summary` is not zeroed
+- browser is not caching stale frontend assets
+
+### 13.3 Alerts do not arrive
+Check:
+
+- alert channel credentials exist
+- `alerts` table contains pending rows
+- alert worker is running
+- rows are becoming `failed`
+- the related webhook/chat IDs are correct
+
+### 13.4 Hits appear but alerts are fewer than expected
+Usually normal.  
+Reason:
+
+- hits are deduplicated per URL
+- alerts are deduplicated per value
+
+This is repository behavior, not necessarily a bug.
+
+### 13.5 Telegram collection does nothing
+Check:
+
+- `TELEGRAM_COLLECTOR_API_ID`
+- `TELEGRAM_COLLECTOR_API_HASH`
+- `TELEGRAM_COLLECTOR_SESSION`
+- extracted items actually contain `type='telegram'`
+
+### 13.6 Graph page is empty
+Check:
+
+- analyzer worker is running
+- `tracked_wallets` has rows
+- `tracked_edges` has rows
+- graph API router registered successfully at startup
+
+### 13.7 “Internal Server Error” causes JSON parse problems in UI
+This happens when frontend code expects JSON but the backend returns an HTML or plain-text error response.  
+Check backend logs first, then the corresponding API route.
+
+### 13.8 Reset did not change behavior
+If old data still appears, confirm:
+- containers were actually recreated
+- volumes were removed
+- the application is not reading preserved bind-mounted files
+- browser cache is cleared
+
+---
+
+## 14. Operational advice for demos and submissions
+
+Because the project combines several subsystems, do not demo every feature at once unless credentials and external services are all verified.
+
+### Stable demo order
+1. API + UI
+2. crawler
+3. evidence saving
+4. watchlist hits
+5. alerts
+6. Telegram bridge
+7. wallet graph
+8. ransomware.live enrichment
+
+This order isolates failures cleanly.
+
+### For classroom or evaluation use
+If reliability matters more than scope, keep the live demo centered on:
+
+- target crawling
+- indicator extraction
+- watchlist matching
+- evidence output
+- hit / alert UI
+
+Then describe Telegram and wallet graph as advanced extensions already integrated into the architecture.
+
+---
+
+## 15. Configuration-sensitive files
+
+Treat these as operationally critical:
+
+- `.env`
 - `targets.json`
 - `watchlist.json`
-- `.env`
+- `docker-compose.yml`
+- `run.py`
 
-In Docker, evidence is already mounted to the host.  
-If you remove the host directory or containers without understanding volume behavior, you may lose investigation artifacts.
-
----
-
-## UI Operation Notes
-
-The UI is static HTML/JS served under `/ui`.
-
-Operationally, this means:
-
-- UI rendering depends on the API endpoints being healthy
-- frontend issues can look like crawl failures even when the backend is fine
-- when debugging, always verify the API directly before assuming the crawler is broken
-
-Suggested order:
-
-1. `GET /health`
-2. `GET /api/summary`
-3. `GET /api/pages/recent`
-4. `GET /api/extracted/recent`
-5. `GET /api/hits/recent`
-6. then inspect UI pages
+If behavior suddenly changes, check these first before assuming a code defect.
 
 ---
 
-## Recommended Debugging Order
+## 16. Final caution
 
-When the system appears broken, debug in this order.
-
-### Case 1: nothing is happening
-Check:
-
-1. is PostgreSQL reachable?
-2. did `init_db` run?
-3. do targets exist in `/api/targets`?
-4. does `/api/summary` show `targets > 0`?
-5. is the crawler mode actually running?
-
-### Case 2: targets exist but pages stay at zero
-Check:
-
-1. queue reset behavior at startup
-2. `get_due_targets()` logic
-3. Tor connectivity
-4. request timeout
-5. malformed seed URLs
-
-### Case 3: pages increase but extracted stays zero
-Check:
-
-1. fetched content actually contains parseable text
-2. extractor patterns
-3. HTML/text storage
-4. whether pages are mostly login/search/navigation pages
-
-### Case 4: extracted increases but hits stay zero
-Check:
-
-1. watchlist types
-2. regex validity
-3. normalization differences
-4. watchlist contents actually loaded into DB
-
-### Case 5: hits exist but alerts stay zero
-Check:
-
-1. pending alert records created?
-2. cooldown window active?
-3. webhook/token configured?
-4. alert worker running?
-
-### Case 6: screenshots missing
-Check:
-
-1. Playwright installed
-2. browser startup permissions
-3. timeout too low
-4. screenshot setting disabled
-
----
-
-## Useful Validation Calls
-
-### Health
-```bash
-curl http://localhost:8000/health
-```
-
-### Summary
-```bash
-curl http://localhost:8000/api/summary
-```
-
-### Recent pages
-```bash
-curl http://localhost:8000/api/pages/recent
-```
-
-### Recent extracted items
-```bash
-curl http://localhost:8000/api/extracted/recent
-```
-
-### Recent hits
-```bash
-curl "http://localhost:8000/api/hits/recent?limit=20&offset=0"
-```
-
-### Recent alerts
-```bash
-curl "http://localhost:8000/api/alerts/recent?limit=20&offset=0"
-```
-
----
-
-## Operational Best Practices
-
-- Keep `targets.json` focused and clean
-- Do not start with a very high `MAX_DEPTH`
-- Validate regex watchlist entries before bulk loading
-- Persist `evidence/` and database volumes
-- Use API responses to separate UI issues from backend issues
-- Tune `WORKER_COUNT` conservatively first
-- Increase timeouts for Tor-heavy targets rather than assuming crawl logic is broken
-- Review alert cooldown before concluding that notifications failed
-- Treat screenshots as supporting evidence, not the only proof of successful crawling
-
----
-
-## Common Misread Situations
-
-### `targets > 0`, `pages = 0`
-Usually means scheduling/fetching is failing, not that seed loading failed.
-
-### `pages > 0`, `hits = 0`
-Usually means extraction or watchlist mismatch, not necessarily a crawler failure.
-
-### alerts visible in DB but not received externally
-Usually means delivery configuration failure or channel-specific error.
-
-### UI looks empty
-Could be frontend rendering only. Confirm API JSON first.
-
----
-
-## Maintenance Notes
-
-After major code changes, especially around schema or repository behavior:
-
-1. re-run `python run.py init_db`
-2. confirm table/index creation
-3. verify seed reload
-4. restart crawler and alert worker
-5. validate summary counts through the API
-
-When changing seed files during runtime, use:
-
-```text
-POST /api/reload
-```
-
-with the proper API key, instead of assuming the running process will automatically re-read the files.
-
----
-
-## Final Check Before Deployment
-
-Minimum checklist:
-
-- `.env` reviewed
-- PostgreSQL persistent storage configured
-- Tor reachable
-- Playwright available when screenshots are needed
-- targets loaded
-- watchlist loaded
-- `/health` works
-- `/api/summary` reflects activity
-- recent pages increase during runtime
-- alert channel tested with a known hit
-
-If those conditions are satisfied, the system is operational.
+This codebase shares one database across crawler, Telegram bridge, ransomware enrichment, and wallet tracing. That design is powerful, but it also means one misconfigured subsystem can make the whole stack look broken. When debugging, isolate by subsystem and verify table growth one layer at a time.\n
